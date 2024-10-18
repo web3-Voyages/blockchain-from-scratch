@@ -90,3 +90,14 @@ func intToHex(num int64) ([]byte, error) {
 
 	return buff.Bytes(), nil
 }
+
+func (pow *ProofOfWork) Validate() bool {
+	var hashInt big.Int
+	data, err := pow.prepareData(pow.block.Nonce)
+	if err != nil {
+		return false
+	}
+	hash := sha256.Sum256(data)
+	hashInt.SetBytes(hash[:])
+	return hashInt.Cmp(pow.target) == -1
+}
