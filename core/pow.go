@@ -32,7 +32,7 @@ func (pow *ProofOfWork) Run() (nonce int, hashRes []byte, err error) {
 	nonce = 0
 
 	logrus.Info("[[[Mining a new Block!!!]]]")
-	for nonce < math.MaxInt64 {
+	for nonce < maxNonce {
 		var data []byte
 		data, err = pow.prepareData(nonce)
 		if err != nil {
