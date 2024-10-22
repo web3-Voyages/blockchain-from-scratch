@@ -67,3 +67,8 @@ func NewBlockChain() *Blockchain {
 func NewGenesisBlock() *Block {
 	return NewBlock("Genesis Block", []byte{})
 }
+
+// Iterator returns a BlockchainIterator to iterate over the blocks of the blockchain
+func (chain *Blockchain) Iterator() *BlockchainIterator {
+	return &BlockchainIterator{chain.tip, chain.db}
+}
