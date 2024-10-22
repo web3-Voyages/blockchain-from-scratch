@@ -1,4 +1,4 @@
-package core
+package blockchain
 
 import (
 	"bytes"
@@ -26,7 +26,7 @@ func NewBlock(data string, prevBlockHash []byte) *Block {
 	pow := NewProofOfWork(block)
 	nonce, hash, err := pow.Run()
 	if err != nil {
-		return nil
+		log.Panic(err)
 	}
 	block.Hash = hash[:]
 	block.Nonce = nonce

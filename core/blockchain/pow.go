@@ -1,4 +1,4 @@
-package core
+package blockchain
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ func (pow *ProofOfWork) Run() (nonce int, hashRes []byte, err error) {
 	var hashInt big.Int
 	nonce = 0
 
-	logrus.Info("[[[Mining a new Block!!!]]]")
+	logrus.Infof("Mining the block containing '%s'", pow.block.Data)
 	for nonce < maxNonce {
 		var data []byte
 		data, err = pow.prepareData(nonce)
@@ -42,11 +42,13 @@ func (pow *ProofOfWork) Run() (nonce int, hashRes []byte, err error) {
 
 		// to log the hash generate
 		if math.Remainder(float64(nonce), 100000) == 0 {
-			logrus.Infof("Hash is \r%x", hash)
+			//logrus.Infof("Hash is \r%x", hash)
 		}
 		hashInt.SetBytes(hash[:])
 
 		if hashInt.Cmp(pow.target) == -1 {
+			logrus.Infof("Mining block is success, Hash is \r%x", hash)
+			hashRes = hash[:]
 			break
 		} else {
 			nonce++

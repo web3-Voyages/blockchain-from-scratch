@@ -1,11 +1,12 @@
-package core
+package blockchain
 
 import (
 	"github.com/boltdb/bolt"
+	"github.com/sirupsen/logrus"
 	"log"
 )
 
-const dbFile = "blockchain_%s.db"
+const dbFile = "blockchain_test.db"
 const blocksBucket = "blocks"
 
 type Blockchain struct {
@@ -65,6 +66,7 @@ func NewBlockChain() *Blockchain {
 
 // NewGenesisBlock when the chain created, init GenesisBlock
 func NewGenesisBlock() *Block {
+	logrus.Info("No existing blockchain found. Creating a new one...")
 	return NewBlock("Genesis Block", []byte{})
 }
 

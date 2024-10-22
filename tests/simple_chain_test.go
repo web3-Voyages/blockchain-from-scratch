@@ -1,17 +1,23 @@
-package core
+package tests
 
 import (
+	"blockchain-from-scratch/core/blockchain"
 	"fmt"
 	"testing"
 )
 
 func TestInitChain(t *testing.T) {
-	chain := NewBlockChain()
+	chain := blockchain.NewBlockChain()
 
 	chain.AddBlock("Send tx1")
 	chain.AddBlock("Send tx2")
 
-	for _, block := range chain.blocks {
+	iterator := chain.Iterator()
+	for {
+		block := iterator.Next()
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
 		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
 		fmt.Printf("Data: %s\n", block.Data)
 		fmt.Printf("Hash: %x\n", block.Hash)
