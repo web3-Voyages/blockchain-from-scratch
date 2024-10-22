@@ -1,7 +1,7 @@
 package tests
 
 import (
-	"blockchain-from-scratch/core/blockchain"
+	"blockchain-from-scratch/blockchain"
 	"fmt"
 	"testing"
 )

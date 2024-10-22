@@ -13,13 +13,13 @@ type Blockchain struct {
 	//blocks []*Block
 	tip []byte
 	// TODO to support more db
-	db *bolt.DB
+	Db *bolt.DB
 }
 
 func (chain *Blockchain) AddBlock(data string) {
 	// get last hash from db
 	var lastHash []byte
-	err := chain.db.View(func(tx *bolt.Tx) error {
+	err := chain.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash = b.Get([]byte("l"))
 		return nil
@@ -30,7 +30,7 @@ func (chain *Blockchain) AddBlock(data string) {
 
 	// create new block and store
 	newBlock := NewBlock(data, lastHash)
-	err = chain.db.Update(func(tx *bolt.Tx) error {
+	err = chain.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		err = b.Put(newBlock.Hash, newBlock.Serialize())
 		err = b.Put([]byte("l"), newBlock.Hash)
@@ -72,5 +72,5 @@ func NewGenesisBlock() *Block {
 
 // Iterator returns a BlockchainIterator to iterate over the blocks of the blockchain
 func (chain *Blockchain) Iterator() *BlockchainIterator {
-	return &BlockchainIterator{chain.tip, chain.db}
+	return &BlockchainIterator{chain.tip, chain.Db}
 }
