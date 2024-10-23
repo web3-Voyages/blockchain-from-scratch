@@ -1,7 +1,7 @@
 package cli
 
 import (
-	blockchain2 "blockchain-from-scratch/blockchain"
+	blockchain2 "blockchain-from-scratch/core"
 	"flag"
 	"fmt"
 	"log"
@@ -42,7 +42,7 @@ func (cli *CLI) Run() {
 			addBlockCmd.Usage()
 			os.Exit(1)
 		}
-		cli.addBlock(*addBlockData)
+		//cli.addBlock(*addBlockData)
 	}
 
 	if printChainCmd.Parsed() {
@@ -50,10 +50,10 @@ func (cli *CLI) Run() {
 	}
 }
 
-func (cli *CLI) addBlock(data string) {
-	cli.Chain.AddBlock(data)
-	fmt.Println("Success!")
-}
+//func (cli *CLI) addBlock(data string) {
+//	cli.Chain.MineBlock(data)
+//	fmt.Println("Success!")
+//}
 
 func (cli *CLI) printChain() {
 	bci := cli.Chain.Iterator()
@@ -62,7 +62,7 @@ func (cli *CLI) printChain() {
 		block := bci.Next()
 
 		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
-		fmt.Printf("Data: %s\n", block.Data)
+		fmt.Printf("Data: %s\n", block.HashTransactions())
 		fmt.Printf("Hash: %x\n", block.Hash)
 		pow := blockchain2.NewProofOfWork(block)
 		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
@@ -76,11 +76,11 @@ func (cli *CLI) printChain() {
 
 func (cli *CLI) printUsage() {
 	fmt.Println("Usage:")
-	fmt.Println("  createblockchain -address ADDRESS - Create a blockchain and send genesis block reward to ADDRESS")
+	fmt.Println("  createblockchain -address ADDRESS - Create a core and send genesis block reward to ADDRESS")
 	fmt.Println("  createwallet - Generates a new key-pair and saves it into the wallet file")
 	fmt.Println("  getbalance -address ADDRESS - Get balance of ADDRESS")
 	fmt.Println("  listaddresses - Lists all addresses from the wallet file")
-	fmt.Println("  printchain - Print all the blocks of the blockchain")
+	fmt.Println("  printchain - Print all the blocks of the core")
 	fmt.Println("  reindexutxo - Rebuilds the UTXO set")
 	fmt.Println("  send -from FROM -to TO -amount AMOUNT -mine - Send AMOUNT of coins from FROM address to TO. Mine on the same node, when -mine is set.")
 	fmt.Println("  startnode -miner ADDRESS - Start a node with ID specified in NODE_ID env. var. -miner enables mining")

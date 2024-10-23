@@ -1,16 +1,16 @@
 package tests
 
 import (
-	"blockchain-from-scratch/blockchain"
+	"blockchain-from-scratch/core"
 	"fmt"
 	"testing"
 )
 
 func TestInitChain(t *testing.T) {
-	chain := blockchain.NewBlockChain()
+	chain := core.NewBlockChain()
 
-	chain.AddBlock("Send tx1")
-	chain.AddBlock("Send tx2")
+	//chain.MineBlock("Send tx1")
+	//chain.MineBlock("Send tx2")
 
 	iterator := chain.Iterator()
 	for {
@@ -19,7 +19,7 @@ func TestInitChain(t *testing.T) {
 			break
 		}
 		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
-		fmt.Printf("Data: %s\n", block.Data)
+		fmt.Printf("Data: %s\n", block.HashTransactions())
 		fmt.Printf("Hash: %x\n", block.Hash)
 		fmt.Println()
 	}

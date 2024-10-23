@@ -1,12 +1,12 @@
 package main
 
 import (
-	"blockchain-from-scratch/blockchain"
 	"blockchain-from-scratch/cli"
+	"blockchain-from-scratch/core"
 )
 
 func main() {
-	chain := blockchain.NewBlockChain()
+	chain := core.NewBlockChain()
 	defer chain.Db.Close()
 
 	cli := cli.CLI{Chain: chain}
