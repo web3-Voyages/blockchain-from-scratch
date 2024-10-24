@@ -6,3 +6,7 @@ type TxInput struct {
 	Vout      int
 	ScriptSig string
 }
+
+func (in *TxInput) CanUnlockOutputWith(unlockingData string) bool {
+	return in.ScriptSig == unlockingData
+}

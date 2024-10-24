@@ -6,4 +6,6 @@ type TxOutput struct {
 	ScriptPubKey string
 }
 
-// NewTXOutput create a new TXOutput
+func (out *TxOutput) CanBeUnlockedWith(unlockingData string) bool {
+	return out.ScriptPubKey == unlockingData
+}
