@@ -31,7 +31,7 @@ func (pow *ProofOfWork) Run() (nonce int, hashRes []byte, err error) {
 	var hashInt big.Int
 	nonce = 0
 
-	logrus.Infof("Mining the block containing '%s'", pow.block.HashTransactions())
+	logrus.Infof("Mining a new block")
 	for nonce < maxNonce {
 		var data []byte
 		data, err = pow.prepareData(nonce)
