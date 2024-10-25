@@ -4,6 +4,7 @@ import (
 	"blockchain-from-scratch/core"
 	"flag"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"log"
 	"os"
 	"strconv"
@@ -18,9 +19,11 @@ func (cli *CLI) Run() {
 
 	addBlockCmd := flag.NewFlagSet("addblock", flag.ExitOnError)
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
+	getbalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 
 	addBlockData := addBlockCmd.String("data", "", "Block data")
+	getBalanceAddress := getbalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
 
 	switch os.Args[1] {
@@ -33,6 +36,11 @@ func (cli *CLI) Run() {
 		err := addBlockCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Fatal(err)
+		}
+	case "getbalance":
+		err := getbalanceCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
 		}
 	case "printchain":
 		err := printChainCmd.Parse(os.Args[2:])
@@ -58,6 +66,14 @@ func (cli *CLI) Run() {
 			os.Exit(1)
 		}
 		cli.createBlockchain(*createBlockchainAddress)
+	}
+
+	if getbalanceCmd.Parsed() {
+		if *getBalanceAddress == "" {
+			getbalanceCmd.Usage()
+			os.Exit(1)
+		}
+		cli.getBalance(*getBalanceAddress)
 	}
 
 	if printChainCmd.Parsed() {
@@ -93,6 +109,18 @@ func (cli *CLI) printChain() {
 			break
 		}
 	}
+}
+
+func (cli *CLI) getBalance(address string) {
+	chain := core.NewBlockChain()
+	defer chain.Db.Close()
+
+	balance := 0
+	utxos := chain.FindUTXO(address)
+	for _, out := range utxos {
+		balance += out.Value
+	}
+	logrus.Infof("Balance of '%s': %d\n", address, balance)
 }
 
 func (cli *CLI) printUsage() {
