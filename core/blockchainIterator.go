@@ -1,4 +1,4 @@
-package blockchain
+package core
 
 import (
 	"github.com/boltdb/bolt"
