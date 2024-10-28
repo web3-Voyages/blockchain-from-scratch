@@ -9,8 +9,11 @@ import (
 	"log"
 )
 
-// use UTXO transcation
-// see link: https://trustwallet.com/blog/what-is-a-utxo-unspent-transaction-output
+// use UTXO transcation, just like the Bitcoin protocol does not track user balances directly;
+// instead, it tracks UTXOs and which addresses they belong to.
+// see link:
+//   - https://trustwallet.com/blog/what-is-a-utxo-unspent-transaction-output
+//   - https://mp.weixin.qq.com/s/LsHf2jhy9YdQcAyM8b9bdg
 type Transaction struct {
 	ID   []byte
 	Vin  []TxInput

@@ -134,6 +134,7 @@ func (cli *CLI) getBalance(address string) {
 	chain := core.NewBlockChain()
 	defer chain.Db.Close()
 
+	// The balance of a user's address is simply the sum of all UTXOs they own.
 	balance := 0
 	utxos := chain.FindUTXO(address)
 	for _, out := range utxos {
