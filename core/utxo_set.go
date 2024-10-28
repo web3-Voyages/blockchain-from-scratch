@@ -9,8 +9,24 @@ type UTXOSet struct {
 
 func (chain *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
 	unspentOutputs := make(map[string][]int)
-	//unspentTxs := chain.FindUnspentTransactions(address)
+	unspentTxs := chain.FindUnspentTransactions(address)
 	accumulated := 0
+
+Work:
+	for _, tx := range unspentTxs {
+		txId := hex.EncodeToString(tx.ID)
+
+		for outIdx, out := range tx.VOut {
+			if out.CanBeUnlockedWith(address) && accumulated < amount {
+				accumulated += out.Value
+				unspentOutputs[txId] = append(unspentOutputs[txId], outIdx)
+
+				if accumulated >= amount {
+					break Work
+				}
+			}
+		}
+	}
 
 	return accumulated, unspentOutputs
 }

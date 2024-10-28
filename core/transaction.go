@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
+	"encoding/hex"
 	"fmt"
 	"log"
 )
@@ -35,7 +36,32 @@ func NewCoinbaseTx(to, data string) *Transaction {
 }
 
 func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transaction {
-	return NewCoinbaseTx(from, to)
+	var inputs []TxInput
+	var outputs []TxOutput
+
+	acc, validOutputs := chain.FindSpendableOutputs(from, amount)
+	if acc < amount {
+		log.Panic("Error: Not enough funds")
+	}
+
+	for txId, outs := range validOutputs {
+		txID, err := hex.DecodeString(txId)
+		if err != nil {
+			log.Panic(err)
+		}
+		for _, out := range outs {
+			input := TxInput{txID, out, from}
+			inputs = append(inputs, input)
+		}
+	}
+
+	outputs = append(outputs, TxOutput{amount, to})
+	if acc > amount {
+		outputs = append(outputs, TxOutput{(acc - amount), from})
+	}
+	tx := Transaction{nil, inputs, outputs}
+	tx.ID = tx.Hash()
+	return &tx
 }
 
 // Hash returns the hash of the Transaction

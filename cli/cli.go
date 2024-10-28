@@ -4,10 +4,11 @@ import (
 	"blockchain-from-scratch/core"
 	"flag"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"log"
 	"os"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 )
 
 type CLI struct {
@@ -21,10 +22,14 @@ func (cli *CLI) Run() {
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	getbalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
+	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 
 	addBlockData := addBlockCmd.String("data", "", "Block data")
 	getBalanceAddress := getbalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
+	sendFrom := sendCmd.String("from", "", "Source wallet address")
+	sendTo := sendCmd.String("to", "", "Destination wallet address")
+	sendAmount := sendCmd.Int("amount", 0, "Amount to send")
 
 	switch os.Args[1] {
 	case "createblockchain":
@@ -46,6 +51,11 @@ func (cli *CLI) Run() {
 		err := printChainCmd.Parse(os.Args[2:])
 		if err != nil {
 			log.Fatal(err)
+		}
+	case "send":
+		err := sendCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
 		}
 	default:
 		cli.printUsage()
@@ -78,6 +88,15 @@ func (cli *CLI) Run() {
 
 	if printChainCmd.Parsed() {
 		cli.printChain()
+	}
+
+	if sendCmd.Parsed() {
+		if *sendFrom == "" || *sendTo == "" || *sendAmount <= 0 {
+			sendCmd.Usage()
+			os.Exit(1)
+		}
+
+		cli.send(*sendFrom, *sendTo, *sendAmount)
 	}
 }
 
@@ -121,6 +140,15 @@ func (cli *CLI) getBalance(address string) {
 		balance += out.Value
 	}
 	logrus.Infof("Balance of '%s': %d\n", address, balance)
+}
+
+func (cli *CLI) send(from, to string, amount int) {
+	chain := core.NewBlockChain()
+	defer chain.Db.Close()
+
+	tx := core.NewUTXOTransaction(from, to, amount, chain)
+	chain.MineBlock([]*core.Transaction{tx})
+	fmt.Println("Success!")
 }
 
 func (cli *CLI) printUsage() {
