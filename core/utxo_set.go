@@ -7,9 +7,9 @@ type UTXOSet struct {
 	Blockchain *Blockchain
 }
 
-func (chain *Blockchain) FindSpendableOutputs(address string, amount int) (int, map[string][]int) {
+func (chain *Blockchain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
 	unspentOutputs := make(map[string][]int)
-	unspentTxs := chain.FindUnspentTransactions(address)
+	unspentTxs := chain.FindUnspentTransactions(pubKeyHash)
 	accumulated := 0
 
 Work:
@@ -17,7 +17,7 @@ Work:
 		txId := hex.EncodeToString(tx.ID)
 
 		for outIdx, out := range tx.VOut {
-			if out.CanBeUnlockedWith(address) && accumulated < amount {
+			if out.IsLockedWithKey(pubKeyHash) && accumulated < amount {
 				accumulated += out.Value
 				unspentOutputs[txId] = append(unspentOutputs[txId], outIdx)
 
@@ -32,7 +32,7 @@ Work:
 }
 
 // FindUnspentTransactions finds all unspent transaction outputs for a given address.
-func (chain *Blockchain) FindUnspentTransactions(address string) []Transaction {
+func (chain *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transaction {
 	var unspentTXs []Transaction        // List to store unspent transactions
 	spentTXOs := make(map[string][]int) // Map to track spent transaction outputs
 	iterator := chain.Iterator()        // Get an iterator for the blockchain
@@ -59,7 +59,7 @@ func (chain *Blockchain) FindUnspentTransactions(address string) []Transaction {
 				}
 
 				// Check if the output can be unlocked with the given address
-				if out.CanBeUnlockedWith(address) {
+				if out.IsLockedWithKey(pubKeyHash) {
 					unspentTXs = append(unspentTXs, *tx) // Add the transaction to the list of unspent transactions
 				}
 			}
@@ -67,7 +67,7 @@ func (chain *Blockchain) FindUnspentTransactions(address string) []Transaction {
 			// If the transaction is not a coinbase transaction, track spent inputs
 			if !tx.IsCoinbase() {
 				for _, in := range tx.Vin {
-					if in.CanUnlockOutputWith(address) {
+					if in.UsesKey(pubKeyHash) {
 						inTxID := hex.EncodeToString(in.Txid)
 						spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
 					}
@@ -88,13 +88,13 @@ func (tx Transaction) IsCoinbase() bool {
 	return len(tx.Vin) == 1 && len(tx.Vin[0].Txid) == 0 && tx.Vin[0].Vout == -1
 }
 
-func (chain *Blockchain) FindUTXO(address string) []TxOutput {
+func (chain *Blockchain) FindUTXO(pubKeyHash []byte) []TxOutput {
 	var UTXOs []TxOutput
-	unspentTxs := chain.FindUnspentTransactions(address)
+	unspentTxs := chain.FindUnspentTransactions(pubKeyHash)
 
 	for _, tx := range unspentTxs {
 		for _, out := range tx.VOut {
-			if out.CanBeUnlockedWith(address) {
+			if out.IsLockedWithKey(pubKeyHash) {
 				UTXOs = append(UTXOs, out)
 			}
 		}

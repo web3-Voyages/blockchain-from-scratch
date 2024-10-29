@@ -1,19 +1,21 @@
 package core
 
 import (
+	"blockchain-from-scratch/core/wallet"
 	"bytes"
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"log"
 )
 
 // use UTXO transcation, just like the Bitcoin protocol does not track user balances directly;
 // instead, it tracks UTXOs and which addresses they belong to.
 // see link:
-//   - https://trustwallet.com/blog/what-is-a-utxo-unspent-transaction-output
-//   - https://mp.weixin.qq.com/s/LsHf2jhy9YdQcAyM8b9bdg
+//  1. https://trustwallet.com/blog/what-is-a-utxo-unspent-transaction-output
+//  2. https://mp.weixin.qq.com/s/LsHf2jhy9YdQcAyM8b9bdg
 type Transaction struct {
 	ID   []byte
 	Vin  []TxInput
@@ -31,10 +33,11 @@ func NewCoinbaseTx(to, data string) *Transaction {
 		data = fmt.Sprintf("Reward to '%s'", to)
 	}
 
-	txin := TxInput{[]byte{}, -1, data}
-	txout := TxOutput{subsidy, to}
-	tx := Transaction{nil, []TxInput{txin}, []TxOutput{txout}}
+	txin := TxInput{[]byte{}, -1, nil, []byte(data)}
+	txout := NewTXOutput(subsidy, to)
+	tx := Transaction{nil, []TxInput{txin}, []TxOutput{*txout}}
 	tx.ID = tx.Hash()
+	logrus.Infof("NewCoinbaseTx to '%s'", to)
 	return &tx
 }
 
@@ -42,7 +45,14 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 	var inputs []TxInput
 	var outputs []TxOutput
 
-	acc, validOutputs := chain.FindSpendableOutputs(from, amount)
+	wallets, err := wallet.NewWallets()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	fromWallet := wallets.GetWallet(from)
+	pubKeyHash := wallet.HashPubKey(fromWallet.PublicKey)
+	acc, validOutputs := chain.FindSpendableOutputs(pubKeyHash, amount)
 	if acc < amount {
 		log.Panic("Error: Not enough funds")
 	}
@@ -53,17 +63,18 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 			log.Panic(err)
 		}
 		for _, out := range outs {
-			input := TxInput{txID, out, from}
+			input := TxInput{txID, out, nil, fromWallet.PublicKey}
 			inputs = append(inputs, input)
 		}
 	}
 
-	outputs = append(outputs, TxOutput{amount, to})
+	outputs = append(outputs, TxOutput{amount, pubKeyHash})
 	if acc > amount {
-		outputs = append(outputs, TxOutput{(acc - amount), from})
+		outputs = append(outputs, *NewTXOutput(acc-amount, from))
 	}
 	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
+	// TODO need SignTransaction
 	return &tx
 }
 
