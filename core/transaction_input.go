@@ -14,7 +14,7 @@ type TxInput struct {
 }
 
 func (in *TxInput) UsesKey(publicHash []byte) bool {
-	lockingHash := wallet.HashPubKey(publicHash)
+	lockingHash := wallet.HashPubKey(in.PubKey)
 
 	return bytes.Compare(lockingHash, publicHash) == 0
 }

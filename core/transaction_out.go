@@ -12,7 +12,7 @@ type TxOutput struct {
 }
 
 func (out *TxOutput) Lock(address []byte) {
-	pubKeyHash := wallet.HashPubKey(address)
+	pubKeyHash := wallet.Base58Decode(address)
 	// Slicing [1:len(pubKeyHash) - 4] here is to remove the version byte and checksum.
 	// The version byte is usually the first byte, and the checksum is usually the last four bytes. See field version/addressChecksumLen.
 	// The version byte is 0x00, which is one byte. In hexadecimal, each pair (e.g., 00) represents 1 byte.

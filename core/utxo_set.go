@@ -1,6 +1,8 @@
 package core
 
-import "encoding/hex"
+import (
+	"encoding/hex"
+)
 
 // UTXOSet represents UTXO set
 type UTXOSet struct {
@@ -10,6 +12,7 @@ type UTXOSet struct {
 func (chain *Blockchain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
 	unspentOutputs := make(map[string][]int)
 	unspentTxs := chain.FindUnspentTransactions(pubKeyHash)
+	//logrus.Info("unspent txs: ", unspentTxs)
 	accumulated := 0
 
 Work:
