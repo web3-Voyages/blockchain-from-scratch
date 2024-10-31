@@ -2,6 +2,9 @@ package core
 
 import (
 	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"log"
 )
 
 // UTXOSet represents UTXO set
@@ -12,7 +15,12 @@ type UTXOSet struct {
 func (chain *Blockchain) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[string][]int) {
 	unspentOutputs := make(map[string][]int)
 	unspentTxs := chain.FindUnspentTransactions(pubKeyHash)
-	//logrus.Info("unspent txs: ", unspentTxs)
+	unspentTXsJSON, err := json.MarshalIndent(unspentTxs, "", "  ")
+	if err != nil {
+		log.Panic(err)
+	}
+	fmt.Println(string(unspentTXsJSON))
+	fmt.Println("=========FindSpendableOutputs===============")
 	accumulated := 0
 
 Work:
@@ -83,6 +91,12 @@ func (chain *Blockchain) FindUnspentTransactions(pubKeyHash []byte) []Transactio
 			break
 		}
 	}
+	//unspentTXsJSON, err := json.MarshalIndent(unspentTXs, "", "  ")
+	//if err != nil {
+	//	log.Panic(err)
+	//}
+	//fmt.Println("=============FindUnspentTransactions==================")
+	//fmt.Println(string(unspentTXsJSON))
 	return unspentTXs // Return the list of unspent transactions
 }
 

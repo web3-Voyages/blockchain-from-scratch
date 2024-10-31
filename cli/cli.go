@@ -122,6 +122,9 @@ func (cli *CLI) printChain() {
 }
 
 func (cli *CLI) getBalance(address string) {
+	if !wallet.ValidateAddress(address) {
+		log.Panic("ERROR: Address is not valid")
+	}
 	chain := core.NewBlockChain()
 	defer chain.Db.Close()
 
@@ -138,6 +141,10 @@ func (cli *CLI) getBalance(address string) {
 }
 
 func (cli *CLI) send(from, to string, amount int) {
+	if !wallet.ValidateAddress(from) || !wallet.ValidateAddress(to) {
+		log.Panic("ERROR: Address is not valid")
+	}
+
 	chain := core.NewBlockChain()
 	defer chain.Db.Close()
 
