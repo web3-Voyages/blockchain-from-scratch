@@ -3,12 +3,17 @@ package core
 import (
 	"blockchain-from-scratch/core/wallet"
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"log"
+	"math/big"
+
+	"github.com/sirupsen/logrus"
 )
 
 // use UTXO transcation, just like the Bitcoin protocol does not track user balances directly;
@@ -68,6 +73,7 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 		}
 	}
 
+	// TODO there's a bug when account transfer to themselves
 	outputs = append(outputs, *NewTXOutput(amount, to))
 	if acc > amount {
 		outputs = append(outputs, *NewTXOutput(acc-amount, from))
@@ -101,4 +107,82 @@ func (tx Transaction) Serialize() []byte {
 	}
 
 	return encoded.Bytes()
+}
+
+func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
+	if tx.IsCoinbase() {
+		return
+	}
+
+	// Create a trimmed copy of the transaction for signing
+	// Using txCopy is to isolate the signing data and prevent transaction malleability issues
+	txCopy := tx.TrimmedCopy()
+
+	for inId, vin := range txCopy.Vin {
+		// Retrieve the previous transaction corresponding to the current input
+		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
+		prepareForSigning(&txCopy, inId, &prevTx)
+
+		// Sign the transaction ID with the private key
+		r, s, err := ecdsa.Sign(rand.Reader, &priKey, txCopy.ID)
+		if err != nil {
+			log.Panic(err)
+		}
+		// Append the signature to the original transaction's input
+		tx.Vin[inId].Signature = append(r.Bytes(), s.Bytes()...)
+	}
+
+}
+
+func prepareForSigning(txCopy *Transaction, inId int, prevTx *Transaction) {
+	txCopy.Vin[inId].Signature = nil
+	txCopy.Vin[inId].PubKey = prevTx.Hash()
+	txCopy.ID = txCopy.Hash()
+	txCopy.Vin[inId].PubKey = nil
+}
+
+func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
+	txCopy := tx.TrimmedCopy()
+	curve := elliptic.P256()
+
+	for inId, vin := range txCopy.Vin {
+		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
+		prepareForSigning(&txCopy, inId, &prevTx)
+
+		r := big.Int{}
+        s := big.Int{}
+        sigLen := len(vin.Signature)
+        r.SetBytes(vin.Signature[:(sigLen / 2)])
+        s.SetBytes(vin.Signature[(sigLen / 2):])
+
+        x := big.Int{}
+        y := big.Int{}
+        keyLen := len(vin.PubKey)
+        x.SetBytes(vin.PubKey[:(keyLen / 2)])
+        y.SetBytes(vin.PubKey[(keyLen / 2):])
+
+		rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
+		if !ecdsa.Verify(&rawPubKey, tx.Hash(), &r, &s) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (tx *Transaction) TrimmedCopy() Transaction {
+	var inputs []TxInput
+	var outputs []TxOutput
+
+	for _, vin := range tx.Vin {
+		inputs = append(inputs, TxInput{vin.Txid, vin.Vout, nil, nil})
+	}
+
+	for _, vout := range tx.VOut {
+		outputs = append(outputs, TxOutput{vout.Value, vout.PubKeyHash})
+	}
+
+	txCopy := Transaction{tx.ID, inputs, outputs}
+
+	return txCopy
 }
