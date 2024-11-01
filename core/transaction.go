@@ -80,7 +80,8 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 	}
 	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
-	// TODO need SignTransaction
+	// need SignTransaction
+	chain.SignTransaction(&tx, fromWallet.PrivateKey)
 	return &tx
 }
 
