@@ -1,12 +1,20 @@
 package core
 
+import (
+	"blockchain-from-scratch/core/wallet"
+	"bytes"
+)
+
 // TxInput represents an input in a transaction.
 type TxInput struct {
 	Txid      []byte
 	Vout      int
-	ScriptSig string
+	Signature []byte
+	PubKey    []byte
 }
 
-func (in *TxInput) CanUnlockOutputWith(unlockingData string) bool {
-	return in.ScriptSig == unlockingData
+func (in *TxInput) UsesKey(publicHash []byte) bool {
+	lockingHash := wallet.HashPubKey(in.PubKey)
+
+	return bytes.Equal(lockingHash, publicHash)
 }

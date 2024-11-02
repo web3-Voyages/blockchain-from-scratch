@@ -1,16 +1,26 @@
 package core
 
 import (
+	"blockchain-from-scratch/core/wallet"
 	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/gob"
 	"encoding/hex"
 	"fmt"
 	"log"
+	"math/big"
+
+	"github.com/sirupsen/logrus"
 )
 
-// use UTXO transcation
-// see link: https://trustwallet.com/blog/what-is-a-utxo-unspent-transaction-output
+// use UTXO transcation, just like the Bitcoin protocol does not track user balances directly;
+// instead, it tracks UTXOs and which addresses they belong to.
+// see link:
+//  1. https://trustwallet.com/blog/what-is-a-utxo-unspent-transaction-output
+//  2. https://mp.weixin.qq.com/s/LsHf2jhy9YdQcAyM8b9bdg
 type Transaction struct {
 	ID   []byte
 	Vin  []TxInput
@@ -28,10 +38,11 @@ func NewCoinbaseTx(to, data string) *Transaction {
 		data = fmt.Sprintf("Reward to '%s'", to)
 	}
 
-	txin := TxInput{[]byte{}, -1, data}
-	txout := TxOutput{subsidy, to}
-	tx := Transaction{nil, []TxInput{txin}, []TxOutput{txout}}
+	txin := TxInput{[]byte{}, -1, nil, []byte(data)}
+	txout := NewTXOutput(subsidy, to)
+	tx := Transaction{nil, []TxInput{txin}, []TxOutput{*txout}}
 	tx.ID = tx.Hash()
+	logrus.Infof("NewCoinbaseTx to '%s'", to)
 	return &tx
 }
 
@@ -39,7 +50,14 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 	var inputs []TxInput
 	var outputs []TxOutput
 
-	acc, validOutputs := chain.FindSpendableOutputs(from, amount)
+	wallets, err := wallet.NewWallets()
+	if err != nil {
+		log.Panic(err)
+	}
+
+	fromWallet := wallets.GetWallet(from)
+	pubKeyHash := wallet.HashPubKey(fromWallet.PublicKey)
+	acc, validOutputs := chain.FindSpendableOutputs(pubKeyHash, amount)
 	if acc < amount {
 		log.Panic("Error: Not enough funds")
 	}
@@ -50,17 +68,24 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 			log.Panic(err)
 		}
 		for _, out := range outs {
-			input := TxInput{txID, out, from}
+			input := TxInput{txID, out, nil, fromWallet.PublicKey}
 			inputs = append(inputs, input)
 		}
 	}
 
-	outputs = append(outputs, TxOutput{amount, to})
-	if acc > amount {
-		outputs = append(outputs, TxOutput{(acc - amount), from})
+	// Ensure correct balance when transferring to self
+	if from == to {
+		outputs = append(outputs, *NewTXOutput(acc, from))
+	} else {
+		outputs = append(outputs, *NewTXOutput(amount, to))
+		if acc > amount {
+			outputs = append(outputs, *NewTXOutput(acc-amount, from))
+		}
 	}
 	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
+	// need SignTransaction
+	chain.SignTransaction(&tx, fromWallet.PrivateKey)
 	return &tx
 }
 
@@ -87,4 +112,85 @@ func (tx Transaction) Serialize() []byte {
 	}
 
 	return encoded.Bytes()
+}
+
+func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
+	if tx.IsCoinbase() {
+		return
+	}
+
+	// Create a trimmed copy of the transaction for signing
+	// Using txCopy is to isolate the signing data and prevent transaction malleability issues
+	txCopy := tx.TrimmedCopy()
+
+	for inId, vin := range txCopy.Vin {
+		// Retrieve the previous transaction corresponding to the current input
+		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
+		prepareForSigning(&txCopy, inId, &prevTx)
+
+		// Sign the transaction ID with the private key
+		r, s, err := ecdsa.Sign(rand.Reader, &priKey, txCopy.ID)
+		// logrus.Infof("r: '%x', s: '%x', id '%x'", r, s, txCopy.ID)
+		if err != nil {
+			log.Panic(err)
+		}
+		// Append the signature to the original transaction's input
+		tx.Vin[inId].Signature = append(r.Bytes(), s.Bytes()...)
+		// logrus.Infof("vin '%d' Signature: %x", inId, tx.Vin[inId].Signature)
+	}
+
+}
+
+func prepareForSigning(txCopy *Transaction, inId int, prevTx *Transaction) {
+	txCopy.Vin[inId].Signature = nil
+	txCopy.Vin[inId].PubKey = prevTx.Hash()
+	txCopy.ID = txCopy.Hash()
+	txCopy.Vin[inId].PubKey = nil
+}
+
+func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
+	txCopy := tx.TrimmedCopy()
+	curve := elliptic.P256()
+
+	for inId, vin := range tx.Vin {
+		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
+		prepareForSigning(&txCopy, inId, &prevTx)
+
+		r := big.Int{}
+		s := big.Int{}
+		sigLen := len(vin.Signature)
+		r.SetBytes(vin.Signature[:(sigLen / 2)])
+		s.SetBytes(vin.Signature[(sigLen / 2):])
+		// logrus.Infof("r '%x': , s '%x', id: '%x'", r.Bytes(), s.Bytes(), txCopy.ID)
+
+		x := big.Int{}
+		y := big.Int{}
+		keyLen := len(vin.PubKey)
+		x.SetBytes(vin.PubKey[:(keyLen / 2)])
+		y.SetBytes(vin.PubKey[(keyLen / 2):])
+
+		rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
+		if !ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) {
+			return false
+		}
+	}
+
+	return true
+}
+
+func (tx *Transaction) TrimmedCopy() Transaction {
+	var inputs []TxInput
+	var outputs []TxOutput
+
+	for _, vin := range tx.Vin {
+		inputs = append(inputs, TxInput{vin.Txid, vin.Vout, nil, nil})
+	}
+
+	for _, vout := range tx.VOut {
+		outputs = append(outputs, TxOutput{vout.Value, vout.PubKeyHash})
+	}
+
+	txCopy := Transaction{tx.ID, inputs, outputs}
+
+	return txCopy
 }

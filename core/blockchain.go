@@ -1,10 +1,15 @@
 package core
 
 import (
+	"bytes"
+	"crypto/ecdsa"
+	"encoding/hex"
+	"errors"
 	"fmt"
-	"github.com/boltdb/bolt"
 	"log"
 	"os"
+
+	"github.com/boltdb/bolt"
 )
 
 const dbFile = "blockchain_test.db"
@@ -20,6 +25,12 @@ type Blockchain struct {
 
 // MineBlock mines a new block with the provided transactions
 func (chain *Blockchain) MineBlock(transactions []*Transaction) {
+	for _, tx := range transactions {
+		if !chain.VerifyTransaction(tx) {
+			log.Panic("Error: Invalid transaction")
+		}
+	}
+
 	// get last hash from db
 	var lastHash []byte
 	err := chain.Db.View(func(tx *bolt.Tx) error {
@@ -84,7 +95,7 @@ func CreateBlockchain(address string) *Blockchain {
 }
 
 func NewBlockChain() *Blockchain {
-	if dbExists() == false {
+	if !dbExists() {
 		fmt.Println("No existing blockchain found. Create one first.")
 		os.Exit(1)
 	}
@@ -109,6 +120,49 @@ func NewBlockChain() *Blockchain {
 // Iterator returns a BlockchainIterator to iterate over the blocks of the core
 func (chain *Blockchain) Iterator() *BlockchainIterator {
 	return &BlockchainIterator{chain.tip, chain.Db}
+}
+
+func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
+	iterator := chain.Iterator()
+
+	for {
+		block := iterator.Next()
+		for _, tx := range block.Transactions {
+			if bytes.Equal(tx.ID, ID) {
+				return *tx, nil
+			}
+		}
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+	}
+	return Transaction{}, errors.New("transaction is not found")
+}
+
+
+func (chain *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
+	prevTXs := make(map[string]Transaction)
+
+    for _, vin := range tx.Vin {
+		prevTx, err := chain.FindTransaction(vin.Txid)
+		if err != nil {
+			log.Panic(err)
+		}
+		prevTXs[hex.EncodeToString(vin.Txid)] = prevTx
+	}
+	tx.Sign(privKey, prevTXs)
+}
+
+func (chain *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	prevTXs := make(map[string]Transaction)
+	for _, vin := range tx.Vin {
+		prevTx, err := chain.FindTransaction(vin.Txid)
+		if err != nil {
+			log.Panic(err)
+		}
+		prevTXs[hex.EncodeToString(vin.Txid)] = prevTx
+	}
+	return tx.Verify(prevTXs)
 }
 
 func dbExists() bool {
