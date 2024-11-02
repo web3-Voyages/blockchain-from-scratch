@@ -22,6 +22,33 @@ type: post
 ## 共识算法
 
 ## 持久化
+### 数据库结构
+> 详情可参考链接: https://en.bitcoin.it/wiki/Bitcoin_Core_0.11_(ch_2):_Data_Storage
+
+Bitcoin Core 使用两个 “bucket” 来存储数据：
+-  blocks，它存储了描述一条链中所有块的元数据
+- 另一个 bucket 是 chainstate，存储了一条链的状态，也就是当前所有的未花费的交易输出，和一些元数据
+---
+
+在 blocks 中，key -> value 为：
+
+| Key | Value |
+| --- | --- |
+| `b` + 32 字节的 block hash | block index 结构 |
+| `f` + 4 字节的 file number | file information |
+| `l` + 4 字节的 file number | 最后一个 block file number |
+| `R` + 1 字节的 boolean | 是否正在 reindex |
+| `F` + 1 字节的 flag name length + flag name string | 1 byte boolean: various flags |
+| `t` + 32 字节的 transaction hash | transaction index 结构 |
+
+---
+在 chainstate，key -> value 为：
+
+| Key | Value |
+| --- | --- |
+| `c` + 32 字节的 transaction hash | unspent transaction output 结构 |
+| `B` | 32 字节的 block hash: 存储区块链中第一个未花费交易输出的块 |
+
 
 ## 交易
 ### 交易模型

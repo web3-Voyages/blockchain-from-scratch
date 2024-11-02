@@ -149,7 +149,9 @@ func (cli *CLI) send(from, to string, amount int) {
 	defer chain.Db.Close()
 
 	tx := core.NewUTXOTransaction(from, to, amount, chain)
-	chain.MineBlock([]*core.Transaction{tx})
+	coinBaseRewardTx := core.NewCoinbaseTx(from, "")
+	txs := []*core.Transaction{coinBaseRewardTx, tx}
+	chain.MineBlock(txs)
 	fmt.Println("Success!")
 }
 
