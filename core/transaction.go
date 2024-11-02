@@ -73,10 +73,14 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 		}
 	}
 
-	// TODO there's a bug when account transfer to themselves
-	outputs = append(outputs, *NewTXOutput(amount, to))
-	if acc > amount {
-		outputs = append(outputs, *NewTXOutput(acc-amount, from))
+	// Ensure correct balance when transferring to self
+	if from == to {
+		outputs = append(outputs, *NewTXOutput(acc, from))
+	} else {
+		outputs = append(outputs, *NewTXOutput(amount, to))
+		if acc > amount {
+			outputs = append(outputs, *NewTXOutput(acc-amount, from))
+		}
 	}
 	tx := Transaction{nil, inputs, outputs}
 	tx.ID = tx.Hash()
@@ -126,11 +130,13 @@ func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transact
 
 		// Sign the transaction ID with the private key
 		r, s, err := ecdsa.Sign(rand.Reader, &priKey, txCopy.ID)
+		// logrus.Infof("r: '%x', s: '%x', id '%x'", r, s, txCopy.ID)
 		if err != nil {
 			log.Panic(err)
 		}
 		// Append the signature to the original transaction's input
 		tx.Vin[inId].Signature = append(r.Bytes(), s.Bytes()...)
+		// logrus.Infof("vin '%d' Signature: %x", inId, tx.Vin[inId].Signature)
 	}
 
 }
@@ -146,24 +152,25 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 	txCopy := tx.TrimmedCopy()
 	curve := elliptic.P256()
 
-	for inId, vin := range txCopy.Vin {
+	for inId, vin := range tx.Vin {
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
 		prepareForSigning(&txCopy, inId, &prevTx)
 
 		r := big.Int{}
-        s := big.Int{}
-        sigLen := len(vin.Signature)
-        r.SetBytes(vin.Signature[:(sigLen / 2)])
-        s.SetBytes(vin.Signature[(sigLen / 2):])
+		s := big.Int{}
+		sigLen := len(vin.Signature)
+		r.SetBytes(vin.Signature[:(sigLen / 2)])
+		s.SetBytes(vin.Signature[(sigLen / 2):])
+		// logrus.Infof("r '%x': , s '%x', id: '%x'", r.Bytes(), s.Bytes(), txCopy.ID)
 
-        x := big.Int{}
-        y := big.Int{}
-        keyLen := len(vin.PubKey)
-        x.SetBytes(vin.PubKey[:(keyLen / 2)])
-        y.SetBytes(vin.PubKey[(keyLen / 2):])
+		x := big.Int{}
+		y := big.Int{}
+		keyLen := len(vin.PubKey)
+		x.SetBytes(vin.PubKey[:(keyLen / 2)])
+		y.SetBytes(vin.PubKey[(keyLen / 2):])
 
 		rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
-		if !ecdsa.Verify(&rawPubKey, tx.Hash(), &r, &s) {
+		if !ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) {
 			return false
 		}
 	}
