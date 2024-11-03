@@ -126,6 +126,7 @@ func (cli *CLI) getBalance(address string) {
 		log.Panic("ERROR: Address is not valid")
 	}
 	chain := core.NewBlockChain()
+	UTXOSet := core.UTXOSet{chain}
 	defer chain.Db.Close()
 
 	// The balance of a user's address is simply the sum of all UTXOs they own.
@@ -133,7 +134,7 @@ func (cli *CLI) getBalance(address string) {
 	pubKeyHash := wallet.Base58Decode([]byte(address))
 	fmt.Println(pubKeyHash)
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
-	utxos := chain.FindUTXO(pubKeyHash)
+	utxos := UTXOSet.FindUTXO(pubKeyHash)
 	for _, out := range utxos {
 		balance += out.Value
 	}
@@ -146,9 +147,10 @@ func (cli *CLI) send(from, to string, amount int) {
 	}
 
 	chain := core.NewBlockChain()
+	UTXOSet := core.UTXOSet{chain}
 	defer chain.Db.Close()
 
-	tx := core.NewUTXOTransaction(from, to, amount, chain)
+	tx := core.NewUTXOTransaction(from, to, amount, &UTXOSet)
 	coinBaseRewardTx := core.NewCoinbaseTx(from, "")
 	txs := []*core.Transaction{coinBaseRewardTx, tx}
 	chain.MineBlock(txs)

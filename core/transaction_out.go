@@ -10,6 +10,9 @@ type TxOutput struct {
 	Value      int
 	PubKeyHash []byte
 }
+type TXOutputs struct {
+	Outputs []TxOutput
+}
 
 func (out *TxOutput) Lock(address []byte) {
 	pubKeyHash := wallet.Base58Decode(address)
@@ -20,7 +23,7 @@ func (out *TxOutput) Lock(address []byte) {
 }
 
 func (out *TxOutput) IsLockedWithKey(pubKeyHash []byte) bool {
-	return bytes.Compare(out.PubKeyHash, pubKeyHash) == 0
+	return bytes.Equal(out.PubKeyHash, pubKeyHash)
 }
 
 // NewTXOutput create a new TXOutput
@@ -30,3 +33,4 @@ func NewTXOutput(value int, address string) *TxOutput {
 
 	return txo
 }
+
