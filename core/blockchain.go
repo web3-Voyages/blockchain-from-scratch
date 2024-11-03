@@ -25,7 +25,7 @@ type Blockchain struct {
 }
 
 // MineBlock mines a new block with the provided transactions
-func (chain *Blockchain) MineBlock(transactions []*Transaction) {
+func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	for _, tx := range transactions {
 		if !chain.VerifyTransaction(tx) {
 			log.Panic("Error: Invalid transaction")
@@ -55,6 +55,8 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) {
 	if err != nil {
 		log.Panic(err)
 	}
+
+	return newBlock
 }
 
 // CreateBlockchain creates a new core DB
@@ -65,6 +67,7 @@ func CreateBlockchain(address string) *Blockchain {
 	}
 
 	coinbaseTx := NewCoinbaseTx(address, genesisCoinbaseData)
+	//utils.PrintJsonLog(coinbaseTx, "coinbaseTx")
 	genesisBlock := NewGenesisBlock(coinbaseTx)
 
 	var tip []byte
@@ -197,9 +200,14 @@ func (chain *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateK
 		prevTXs[hex.EncodeToString(vin.Txid)] = prevTx
 	}
 	tx.Sign(privKey, prevTXs)
+	//utils.PrintJsonLog(tx, "SignTransaction")
 }
 
 func (chain *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	if tx.IsCoinbase() {
+		return true
+	}
+	//utils.PrintJsonLog(tx, "VerifyTransaction")
 	prevTXs := make(map[string]Transaction)
 	for _, vin := range tx.Vin {
 		prevTx, err := chain.FindTransaction(vin.Txid)

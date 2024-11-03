@@ -3,6 +3,7 @@ package cli
 import (
 	"blockchain-from-scratch/core"
 	"blockchain-from-scratch/core/wallet"
+	"blockchain-from-scratch/utils"
 	"flag"
 	"fmt"
 	"log"
@@ -98,22 +99,29 @@ func (cli *CLI) Run() {
 
 func (cli *CLI) createBlockchain(address string) {
 	bc := core.CreateBlockchain(address)
-	bc.Db.Close()
+	defer bc.Db.Close()
+	UTXOSet := core.UTXOSet{Blockchain: bc}
+	UTXOSet.Reindex()
 	fmt.Println("Done!")
 }
 
 func (cli *CLI) printChain() {
-	bci := cli.Chain.Iterator()
+	bc := core.NewBlockChain()
+	defer bc.Db.Close()
+
+	bci := bc.Iterator()
 
 	for {
 		block := bci.Next()
 
-		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
-		fmt.Printf("Data: %s\n", block.HashTransactions())
-		fmt.Printf("Hash: %x\n", block.Hash)
+		fmt.Printf("============ Block %x ============\n", block.Hash)
+		fmt.Printf("Prev. block: %x\n", block.PrevBlockHash)
 		pow := core.NewProofOfWork(block)
-		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
-		fmt.Println()
+		fmt.Printf("PoW: %s\n\n", strconv.FormatBool(pow.Validate()))
+		for _, tx := range block.Transactions {
+			utils.PrintJsonLog(tx, "printChain")
+		}
+		fmt.Printf("\n\n")
 
 		if len(block.PrevBlockHash) == 0 {
 			break
@@ -126,7 +134,7 @@ func (cli *CLI) getBalance(address string) {
 		log.Panic("ERROR: Address is not valid")
 	}
 	chain := core.NewBlockChain()
-	UTXOSet := core.UTXOSet{chain}
+	UTXOSet := core.UTXOSet{Blockchain: chain}
 	defer chain.Db.Close()
 
 	// The balance of a user's address is simply the sum of all UTXOs they own.
@@ -147,13 +155,15 @@ func (cli *CLI) send(from, to string, amount int) {
 	}
 
 	chain := core.NewBlockChain()
-	UTXOSet := core.UTXOSet{chain}
+	UTXOSet := core.UTXOSet{Blockchain: chain}
 	defer chain.Db.Close()
 
 	tx := core.NewUTXOTransaction(from, to, amount, &UTXOSet)
 	coinBaseRewardTx := core.NewCoinbaseTx(from, "")
 	txs := []*core.Transaction{coinBaseRewardTx, tx}
-	chain.MineBlock(txs)
+	//utils.PrintJsonLog(txs, "send")
+	newBlock := chain.MineBlock(txs)
+	UTXOSet.Update(newBlock)
 	fmt.Println("Success!")
 }
 

@@ -83,6 +83,7 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
 		}
 	}
 	tx := Transaction{nil, inputs, outputs}
+	//utils.PrintJsonLog(tx, "NewUTXOTransaction")
 	tx.ID = tx.Hash()
 	// need SignTransaction
 	UTXOSet.Blockchain.SignTransaction(&tx, fromWallet.PrivateKey)
