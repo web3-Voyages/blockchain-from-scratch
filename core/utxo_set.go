@@ -4,6 +4,7 @@ import (
 	"blockchain-from-scratch/utils"
 	"encoding/hex"
 	"github.com/boltdb/bolt"
+	"github.com/sirupsen/logrus"
 	"log"
 )
 
@@ -30,6 +31,7 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 
 			for outIdx, out := range outs.Outputs {
 				if out.IsLockedWithKey(pubKeyHash) && accumulated < amount {
+					//if out.IsLockedWithKey(pubKeyHash) {
 					accumulated += out.Value
 					unspentOutputs[txID] = append(unspentOutputs[txID], outIdx)
 				}
@@ -59,6 +61,8 @@ func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TxOutput {
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			var outs TXOutputs
 			utils.Deserialize(v, &outs)
+			//logrus.Infof("get '%x' vin: ", k)
+			//utils.PrintJsonLog(&outs, "FindUTXO")
 
 			for _, out := range outs.Outputs {
 				if out.IsLockedWithKey(pubKeyHash) {
@@ -74,6 +78,25 @@ func (u UTXOSet) FindUTXO(pubKeyHash []byte) []TxOutput {
 	}
 
 	return UTXOs
+}
+
+func (u UTXOSet) GetUTXODetails() {
+	db := u.Blockchain.Db
+
+	err := db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(utxoBucket))
+		c := b.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			var outs TXOutputs
+			utils.Deserialize(v, &outs)
+			logrus.Infof("get vin '%x' : ", k)
+			utils.PrintJsonLog(&outs, "GetUTXODetails")
+		}
+		return nil
+	})
+	if err != nil {
+		log.Panic(err)
+	}
 }
 
 func (utxo UTXOSet) Reindex() {
@@ -105,7 +128,7 @@ func (utxo UTXOSet) Reindex() {
 	if err != nil {
 		log.Panic(err)
 	}
-
+	logrus.Info("======= Reindex UTXO ======")
 }
 
 func (u UTXOSet) Update(block *Block) {
@@ -113,17 +136,18 @@ func (u UTXOSet) Update(block *Block) {
 
 	err := db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(utxoBucket))
-		for _, tx := range block.Transactions {
-			if !tx.IsCoinbase() {
-				for _, in := range tx.Vin {
+		for _, blockTx := range block.Transactions {
+			if !blockTx.IsCoinbase() {
+				for _, in := range blockTx.Vin {
 					updatedOuts := TXOutputs{}
 					outsBytes := b.Get(in.Txid)
 					var outs TXOutputs
 					utils.Deserialize(outsBytes, &outs)
+					//utils.PrintJsonLog(outs, "outs")
 
 					for outIndex, out := range outs.Outputs {
 						if outIndex != in.Vout {
-							outs.Outputs = append(outs.Outputs, out)
+							updatedOuts.Outputs = append(updatedOuts.Outputs, out)
 						}
 					}
 
@@ -140,10 +164,11 @@ func (u UTXOSet) Update(block *Block) {
 			}
 
 			newOutputs := TXOutputs{}
-			for _, out := range tx.VOut {
+			for _, out := range blockTx.VOut {
 				newOutputs.Outputs = append(newOutputs.Outputs, out)
 			}
-			err := b.Put(tx.ID, utils.Serialize(newOutputs))
+			err := b.Put(blockTx.ID, utils.Serialize(newOutputs))
+			//utils.PrintJsonLog(newOutputs, fmt.Sprintf("newOutputs: %x", blockTx.ID))
 			if err != nil {
 				log.Panic(err)
 			}

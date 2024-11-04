@@ -25,6 +25,7 @@ func (cli *CLI) Run() {
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
 	sendCmd := flag.NewFlagSet("send", flag.ExitOnError)
 	createWalletCmd := flag.NewFlagSet("createwallet", flag.ExitOnError)
+	getUTXODetailsCmd := flag.NewFlagSet("getUTXODetails", flag.ExitOnError)
 
 	getBalanceAddress := getbalanceCmd.String("address", "", "The address to get balance for")
 	createBlockchainAddress := createBlockchainCmd.String("address", "", "The address to send genesis block reward to")
@@ -58,6 +59,11 @@ func (cli *CLI) Run() {
 		if err != nil {
 			log.Panic(err)
 		}
+	case "getUTXODetails":
+		err := getUTXODetailsCmd.Parse(os.Args[2:])
+		if err != nil {
+			log.Panic(err)
+		}
 	default:
 		cli.printUsage()
 		os.Exit(1)
@@ -81,6 +87,9 @@ func (cli *CLI) Run() {
 
 	if printChainCmd.Parsed() {
 		cli.printChain()
+	}
+	if getUTXODetailsCmd.Parsed() {
+		cli.GetUTXODetails()
 	}
 
 	if sendCmd.Parsed() {
@@ -140,7 +149,6 @@ func (cli *CLI) getBalance(address string) {
 	// The balance of a user's address is simply the sum of all UTXOs they own.
 	balance := 0
 	pubKeyHash := wallet.Base58Decode([]byte(address))
-	fmt.Println(pubKeyHash)
 	pubKeyHash = pubKeyHash[1 : len(pubKeyHash)-4]
 	utxos := UTXOSet.FindUTXO(pubKeyHash)
 	for _, out := range utxos {
@@ -175,6 +183,14 @@ func (cli *CLI) createWallet() {
 	fmt.Printf("Your new address: %s\n", address)
 }
 
+func (cli *CLI) GetUTXODetails() {
+	chain := core.NewBlockChain()
+	UTXOSet := core.UTXOSet{Blockchain: chain}
+	UTXOSet.GetUTXODetails()
+	//UTXOSet.Reindex()
+	//UTXOSet.GetUTXODetails()
+}
+
 func (cli *CLI) printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  createblockchain -address ADDRESS - Create a core and send genesis block reward to ADDRESS")
@@ -183,6 +199,7 @@ func (cli *CLI) printUsage() {
 	fmt.Println("  listaddresses - Lists all addresses from the wallet file")
 	fmt.Println("  printchain - Print all the blocks of the core")
 	fmt.Println("  reindexutxo - Rebuilds the UTXO set")
+	fmt.Println("  getUTXODetails - Get UTXO Set details")
 	fmt.Println("  send -from FROM -to TO -amount AMOUNT -mine - Send AMOUNT of coins from FROM address to TO. Mine on the same node, when -mine is set.")
 	fmt.Println("  startnode -miner ADDRESS - Start a node with ID specified in NODE_ID env. var. -miner enables mining")
 }
