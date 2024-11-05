@@ -1,8 +1,6 @@
 package core
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"github.com/sirupsen/logrus"
 	"log"
 	"time"
@@ -46,11 +44,12 @@ func NewGenesisBlock(coinbase *Transaction) *Block {
 // having only just the root hash and without downloading all the transactions.
 func (b *Block) HashTransactions() []byte {
 	var txHashs [][]byte
-	var txHash [32]byte
+	// var txHash [32]byte
 
 	for _, tx := range b.Transactions {
 		txHashs = append(txHashs, tx.Serialize())
 	}
-	txHash = sha256.Sum256(bytes.Join(txHashs, []byte{}))
-	return txHash[:]
+	mTres := NewMerkleTree(txHashs)
+	// txHash = sha256.Sum256(bytes.Join(txHashs, []byte{}))
+	return mTres.RootNode.Data
 }
