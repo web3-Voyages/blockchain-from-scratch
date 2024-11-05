@@ -1,6 +1,7 @@
 package core
 
 import (
+	"blockchain-from-scratch/utils"
 	"github.com/boltdb/bolt"
 	"log"
 )
@@ -15,7 +16,7 @@ func (i *BlockchainIterator) Next() *Block {
 
 	err := i.db.View(func(tx *bolt.Tx) error {
 		bucket := tx.Bucket([]byte(blocksBucket))
-		block = DeserializeBlock(bucket.Get(i.currentHash))
+		utils.Deserialize(bucket.Get(i.currentHash), &block)
 		return nil
 	})
 	if err != nil {

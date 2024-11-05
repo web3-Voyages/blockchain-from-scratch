@@ -1,9 +1,6 @@
 package core
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/gob"
 	"github.com/sirupsen/logrus"
 	"log"
 	"time"
@@ -40,17 +37,6 @@ func NewGenesisBlock(coinbase *Transaction) *Block {
 	return NewBlock([]*Transaction{coinbase}, []byte{})
 }
 
-func (b *Block) Serialize() []byte {
-	var result bytes.Buffer
-	encoder := gob.NewEncoder(&result)
-
-	err := encoder.Encode(b)
-	if err != nil {
-		log.Panic(err)
-	}
-	return result.Bytes()
-}
-
 // HashTransactions TODO can use Merkle tree hash
 // Bitcoin uses a more elaborate technique: it represents all transactions containing in a block as a Merkle tree
 // and uses the root hash of the tree in the Proof-of-Work system.
@@ -58,21 +44,12 @@ func (b *Block) Serialize() []byte {
 // having only just the root hash and without downloading all the transactions.
 func (b *Block) HashTransactions() []byte {
 	var txHashs [][]byte
-	var txHash [32]byte
+	// var txHash [32]byte
 
 	for _, tx := range b.Transactions {
 		txHashs = append(txHashs, tx.Serialize())
 	}
-	txHash = sha256.Sum256(bytes.Join(txHashs, []byte{}))
-	return txHash[:]
-}
-
-func DeserializeBlock(d []byte) *Block {
-	var block Block
-	decoder := gob.NewDecoder(bytes.NewReader(d))
-	err := decoder.Decode(&block)
-	if err != nil {
-		log.Panic(err)
-	}
-	return &block
+	mTres := NewMerkleTree(txHashs)
+	// txHash = sha256.Sum256(bytes.Join(txHashs, []byte{}))
+	return mTres.RootNode.Data
 }

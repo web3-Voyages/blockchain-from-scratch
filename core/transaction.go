@@ -12,7 +12,9 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -35,7 +37,10 @@ const subsidy = 10
 
 func NewCoinbaseTx(to, data string) *Transaction {
 	if data == "" {
-		data = fmt.Sprintf("Reward to '%s'", to)
+		// using random number generation to ensure uniqueness of data and transaction ID uniqueness
+		timestamp := time.Now().Unix()
+		randomUUID := uuid.New().String()
+		data = fmt.Sprintf("Reward to '%s' at %d with UUID %s", to, timestamp, randomUUID)
 	}
 
 	txin := TxInput{[]byte{}, -1, nil, []byte(data)}
@@ -46,7 +51,7 @@ func NewCoinbaseTx(to, data string) *Transaction {
 	return &tx
 }
 
-func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transaction {
+func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TxInput
 	var outputs []TxOutput
 
@@ -57,7 +62,8 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 
 	fromWallet := wallets.GetWallet(from)
 	pubKeyHash := wallet.HashPubKey(fromWallet.PublicKey)
-	acc, validOutputs := chain.FindSpendableOutputs(pubKeyHash, amount)
+	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
+	logrus.Infof("NewUTXOTransaction from '%s' to '%s' amount %d", from, to, acc)
 	if acc < amount {
 		log.Panic("Error: Not enough funds")
 	}
@@ -83,9 +89,10 @@ func NewUTXOTransaction(from, to string, amount int, chain *Blockchain) *Transac
 		}
 	}
 	tx := Transaction{nil, inputs, outputs}
+	//utils.PrintJsonLog(tx, "NewUTXOTransaction")
 	tx.ID = tx.Hash()
 	// need SignTransaction
-	chain.SignTransaction(&tx, fromWallet.PrivateKey)
+	UTXOSet.Blockchain.SignTransaction(&tx, fromWallet.PrivateKey)
 	return &tx
 }
 

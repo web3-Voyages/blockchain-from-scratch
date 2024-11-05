@@ -1,6 +1,7 @@
 package core
 
 import (
+	"blockchain-from-scratch/utils"
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/hex"
@@ -24,7 +25,7 @@ type Blockchain struct {
 }
 
 // MineBlock mines a new block with the provided transactions
-func (chain *Blockchain) MineBlock(transactions []*Transaction) {
+func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	for _, tx := range transactions {
 		if !chain.VerifyTransaction(tx) {
 			log.Panic("Error: Invalid transaction")
@@ -46,7 +47,7 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) {
 	newBlock := NewBlock(transactions, lastHash)
 	err = chain.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
-		err = b.Put(newBlock.Hash, newBlock.Serialize())
+		err = b.Put(newBlock.Hash, utils.Serialize(newBlock))
 		err = b.Put([]byte("l"), newBlock.Hash)
 		chain.tip = newBlock.Hash
 		return nil
@@ -54,6 +55,8 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) {
 	if err != nil {
 		log.Panic(err)
 	}
+
+	return newBlock
 }
 
 // CreateBlockchain creates a new core DB
@@ -63,6 +66,10 @@ func CreateBlockchain(address string) *Blockchain {
 		os.Exit(1)
 	}
 
+	coinbaseTx := NewCoinbaseTx(address, genesisCoinbaseData)
+	//utils.PrintJsonLog(coinbaseTx, "coinbaseTx")
+	genesisBlock := NewGenesisBlock(coinbaseTx)
+
 	var tip []byte
 	// Open a DB file.
 	db, err := bolt.Open(dbFile, 0600, nil)
@@ -71,13 +78,11 @@ func CreateBlockchain(address string) *Blockchain {
 	}
 
 	err = db.Update(func(tx *bolt.Tx) error {
-		coinbaseTx := NewCoinbaseTx(address, genesisCoinbaseData)
-		genesisBlock := NewGenesisBlock(coinbaseTx)
 		b, err := tx.CreateBucket([]byte(blocksBucket))
 		if err != nil {
 			log.Panic(err)
 		}
-		err = b.Put(genesisBlock.Hash, genesisBlock.Serialize())
+		err = b.Put(genesisBlock.Hash, utils.Serialize(genesisBlock))
 		if err != nil {
 			log.Panic(err)
 		}
@@ -117,6 +122,51 @@ func NewBlockChain() *Blockchain {
 	return &Blockchain{tip, db}
 }
 
+func (chain *Blockchain) FindUTXO() map[string]TXOutputs {
+	UTXO := make(map[string]TXOutputs)
+	spentTXOs := make(map[string][]int)
+	iterator := chain.Iterator()
+
+	for {
+		block := iterator.Next()
+
+		for _, tx := range block.Transactions {
+			txId := hex.EncodeToString(tx.ID)
+
+		Outputs:
+			for outIdx, out := range tx.VOut {
+				{
+					// Check if the output was spent
+					if spentTXOs[txId] != nil {
+						for _, spentOut := range spentTXOs[txId] {
+							if spentOut == outIdx {
+								continue Outputs // Skip if the output was spent
+							}
+						}
+					}
+
+					outs := UTXO[txId]
+					outs.Outputs = append(outs.Outputs, out)
+					UTXO[txId] = outs
+				}
+
+				if !tx.IsCoinbase() {
+					for _, in := range tx.Vin {
+						inTxId := hex.EncodeToString(in.Txid)
+						spentTXOs[inTxId] = append(spentTXOs[inTxId], in.Vout)
+					}
+				}
+			}
+
+		}
+		// Break the loop if the genesis block is reached
+		if len(block.PrevBlockHash) == 0 {
+			break
+		}
+	}
+	return UTXO
+}
+
 // Iterator returns a BlockchainIterator to iterate over the blocks of the core
 func (chain *Blockchain) Iterator() *BlockchainIterator {
 	return &BlockchainIterator{chain.tip, chain.Db}
@@ -139,11 +189,10 @@ func (chain *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 	return Transaction{}, errors.New("transaction is not found")
 }
 
-
 func (chain *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateKey) {
 	prevTXs := make(map[string]Transaction)
 
-    for _, vin := range tx.Vin {
+	for _, vin := range tx.Vin {
 		prevTx, err := chain.FindTransaction(vin.Txid)
 		if err != nil {
 			log.Panic(err)
@@ -151,9 +200,14 @@ func (chain *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateK
 		prevTXs[hex.EncodeToString(vin.Txid)] = prevTx
 	}
 	tx.Sign(privKey, prevTXs)
+	//utils.PrintJsonLog(tx, "SignTransaction")
 }
 
 func (chain *Blockchain) VerifyTransaction(tx *Transaction) bool {
+	if tx.IsCoinbase() {
+		return true
+	}
+	//utils.PrintJsonLog(tx, "VerifyTransaction")
 	prevTXs := make(map[string]Transaction)
 	for _, vin := range tx.Vin {
 		prevTx, err := chain.FindTransaction(vin.Txid)

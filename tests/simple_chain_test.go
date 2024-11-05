@@ -2,7 +2,9 @@ package tests
 
 import (
 	"blockchain-from-scratch/core"
+	"encoding/hex"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"testing"
 )
 
@@ -23,4 +25,10 @@ func TestInitChain(t *testing.T) {
 		fmt.Printf("Hash: %x\n", block.Hash)
 		fmt.Println()
 	}
+}
+
+func Test(t *testing.T) {
+	decode, _ := hex.DecodeString("/k31VYCoA7E6KfGR7f4uaMKwKlfSJrwvNE8F6I2pha8=")
+	//hex.EncodeToString()
+	logrus.Infof("%x", decode)
 }
