@@ -3,11 +3,8 @@ package utils
 import (
 	"bytes"
 	"encoding/gob"
-	"fmt"
 	"log"
 )
-
-const commandLength = 12
 
 func Serialize(v interface{}) []byte {
 	var result bytes.Buffer
@@ -26,26 +23,4 @@ func Deserialize(data []byte, v interface{}) {
 	if err != nil {
 		log.Panic(err)
 	}
-}
-
-func CommandToBytes(command string) []byte {
-	var bytes [commandLength]byte
-
-	for i, c := range command {
-		bytes[i] = byte(c)
-	}
-
-	return bytes[:]
-}
-
-func BytesToCommand(bytes []byte) string {
-	var command []byte
-
-	for _, b := range bytes {
-		if b != 0x0 {
-			command = append(command, b)
-		}
-	}
-
-	return fmt.Sprintf("%s", command)
 }
