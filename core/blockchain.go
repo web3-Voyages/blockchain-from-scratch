@@ -13,7 +13,7 @@ import (
 	"github.com/boltdb/bolt"
 )
 
-const dbFile = "blockchain_test.db"
+const dbFile = "blockchain_%s.db"
 const blocksBucket = "blocks"
 const genesisCoinbaseData = "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks"
 
@@ -34,9 +34,14 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 
 	// get last hash from db
 	var lastHash []byte
+	var lastHeight int
 	err := chain.Db.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		lastHash = b.Get([]byte("l"))
+		blockData := b.Get(lastHash)
+		var block Block
+		utils.Deserialize(blockData, &block)
+		lastHeight = block.Height
 		return nil
 	})
 	if err != nil {
@@ -44,7 +49,7 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	}
 
 	// create new block and store
-	newBlock := NewBlock(transactions, lastHash)
+	newBlock := NewBlock(transactions, lastHash, lastHeight+1)
 	err = chain.Db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(blocksBucket))
 		err = b.Put(newBlock.Hash, utils.Serialize(newBlock))
@@ -60,8 +65,9 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 }
 
 // CreateBlockchain creates a new core DB
-func CreateBlockchain(address string) *Blockchain {
-	if dbExists() {
+func CreateBlockchain(address, nodeId string) *Blockchain {
+	dbFile := fmt.Sprintf(dbFile, nodeId)
+	if dbExists(dbFile) {
 		fmt.Println("Blockchain already exists.")
 		os.Exit(1)
 	}
@@ -99,8 +105,9 @@ func CreateBlockchain(address string) *Blockchain {
 	return &Blockchain{tip, db}
 }
 
-func NewBlockChain() *Blockchain {
-	if !dbExists() {
+func NewBlockChain(nodeId string) *Blockchain {
+	dbFile := fmt.Sprintf(dbFile, nodeId)
+	if !dbExists(dbFile) {
 		fmt.Println("No existing blockchain found. Create one first.")
 		os.Exit(1)
 	}
@@ -219,7 +226,26 @@ func (chain *Blockchain) VerifyTransaction(tx *Transaction) bool {
 	return tx.Verify(prevTXs)
 }
 
-func dbExists() bool {
+// GetBestHeight returns the height of the latest block
+func (bc *Blockchain) GetBestHeight() int {
+	var lastBlock Block
+
+	err := bc.Db.View(func(tx *bolt.Tx) error {
+		bucket := tx.Bucket([]byte(blocksBucket))
+		lastHash := bucket.Get([]byte("l"))
+		bucketData := bucket.Get(lastHash)
+		utils.Deserialize(bucketData, &lastBlock)
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return lastBlock.Height
+}
+
+func dbExists(dbFile string) bool {
 	if _, err := os.Stat(dbFile); os.IsNotExist(err) {
 		return false
 	}

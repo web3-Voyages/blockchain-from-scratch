@@ -9,7 +9,7 @@ import (
 )
 
 func TestInitChain(t *testing.T) {
-	chain := core.NewBlockChain()
+	chain := core.NewBlockChain("1")
 
 	//chain.MineBlock("Send tx1")
 	//chain.MineBlock("Send tx2")

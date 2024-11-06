@@ -20,6 +20,12 @@ type CLI struct {
 func (cli *CLI) Run() {
 	cli.validateArgs()
 
+	nodeID := os.Getenv("NODE_ID")
+	if nodeID == "" {
+		fmt.Printf("NODE_ID env. var is not set!")
+		os.Exit(1)
+	}
+
 	createBlockchainCmd := flag.NewFlagSet("createblockchain", flag.ExitOnError)
 	getbalanceCmd := flag.NewFlagSet("getbalance", flag.ExitOnError)
 	printChainCmd := flag.NewFlagSet("printchain", flag.ExitOnError)
@@ -74,7 +80,7 @@ func (cli *CLI) Run() {
 			createBlockchainCmd.Usage()
 			os.Exit(1)
 		}
-		cli.createBlockchain(*createBlockchainAddress)
+		cli.createBlockchain(*createBlockchainAddress, nodeID)
 	}
 
 	if getbalanceCmd.Parsed() {
@@ -82,14 +88,14 @@ func (cli *CLI) Run() {
 			getbalanceCmd.Usage()
 			os.Exit(1)
 		}
-		cli.getBalance(*getBalanceAddress)
+		cli.getBalance(*getBalanceAddress, nodeID)
 	}
 
 	if printChainCmd.Parsed() {
-		cli.printChain()
+		cli.printChain(nodeID)
 	}
 	if getUTXODetailsCmd.Parsed() {
-		cli.GetUTXODetails()
+		cli.GetUTXODetails(nodeID)
 	}
 
 	if sendCmd.Parsed() {
@@ -98,7 +104,7 @@ func (cli *CLI) Run() {
 			os.Exit(1)
 		}
 
-		cli.send(*sendFrom, *sendTo, *sendAmount)
+		cli.send(*sendFrom, *sendTo, nodeID, *sendAmount)
 	}
 
 	if createWalletCmd.Parsed() {
@@ -106,16 +112,16 @@ func (cli *CLI) Run() {
 	}
 }
 
-func (cli *CLI) createBlockchain(address string) {
-	bc := core.CreateBlockchain(address)
+func (cli *CLI) createBlockchain(address, nodeID string) {
+	bc := core.CreateBlockchain(address, nodeID)
 	defer bc.Db.Close()
 	UTXOSet := core.UTXOSet{Blockchain: bc}
 	UTXOSet.Reindex()
 	fmt.Println("Done!")
 }
 
-func (cli *CLI) printChain() {
-	bc := core.NewBlockChain()
+func (cli *CLI) printChain(nodeID string) {
+	bc := core.NewBlockChain(nodeID)
 	defer bc.Db.Close()
 
 	bci := bc.Iterator()
@@ -138,11 +144,11 @@ func (cli *CLI) printChain() {
 	}
 }
 
-func (cli *CLI) getBalance(address string) {
+func (cli *CLI) getBalance(address, nodeID string) {
 	if !wallet.ValidateAddress(address) {
 		log.Panic("ERROR: Address is not valid")
 	}
-	chain := core.NewBlockChain()
+	chain := core.NewBlockChain(nodeID)
 	UTXOSet := core.UTXOSet{Blockchain: chain}
 	defer chain.Db.Close()
 
@@ -157,12 +163,12 @@ func (cli *CLI) getBalance(address string) {
 	logrus.Infof("Balance of '%s': %d\n", address, balance)
 }
 
-func (cli *CLI) send(from, to string, amount int) {
+func (cli *CLI) send(from, to, nodeID string, amount int) {
 	if !wallet.ValidateAddress(from) || !wallet.ValidateAddress(to) {
 		log.Panic("ERROR: Address is not valid")
 	}
 
-	chain := core.NewBlockChain()
+	chain := core.NewBlockChain(nodeID)
 	UTXOSet := core.UTXOSet{Blockchain: chain}
 	defer chain.Db.Close()
 
@@ -183,8 +189,8 @@ func (cli *CLI) createWallet() {
 	fmt.Printf("Your new address: %s\n", address)
 }
 
-func (cli *CLI) GetUTXODetails() {
-	chain := core.NewBlockChain()
+func (cli *CLI) GetUTXODetails(nodeID string) {
+	chain := core.NewBlockChain(nodeID)
 	UTXOSet := core.UTXOSet{Blockchain: chain}
 	UTXOSet.GetUTXODetails()
 	//UTXOSet.Reindex()
