@@ -4,7 +4,7 @@ type addr struct {
 	AddrList []string
 }
 
-type block struct {
+type nodeBlock struct {
 	AddrFrom string
 	Block    []byte
 }
