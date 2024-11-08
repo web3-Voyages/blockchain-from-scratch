@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -28,6 +29,7 @@ func StartServer(nodeId, minerAddress string) {
 
 	// If the current node is not the central node,
 	// it must send a version message to the central node to query whether its blockchain is outdated.
+	logrus.Infof("nodeAddress: %s, knownNodes: %s", nodeAddress, knownNodes[0])
 	if nodeAddress != knownNodes[0] {
 		sendVersion(knownNodes[0], bc)
 	}
@@ -42,9 +44,19 @@ func StartServer(nodeId, minerAddress string) {
 }
 
 func handleConnection(conn net.Conn, bc *core.Blockchain) {
+	logrus.Info(">>>>>>>>>> handleConnection")
+	// 设置读取超时
+	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+
 	request, err := io.ReadAll(conn)
 	if err != nil {
-		log.Panic(err)
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			log.Println("Read timeout:", err)
+		} else {
+			log.Panic(err)
+		}
+		conn.Close()
+		return
 	}
 	command := bytesToCommand(request[:commandLength])
 	fmt.Printf("Received %s command\n", command)
@@ -71,7 +83,9 @@ func handleConnection(conn net.Conn, bc *core.Blockchain) {
 
 func sendVersion(addr string, bc *core.Blockchain) {
 	bestHeight := bc.GetBestHeight()
-	payload := utils.Serialize(version{nodeVersion, bestHeight, nodeAddress})
+	version := version{nodeVersion, bestHeight, nodeAddress}
+	utils.PrintJsonLog(version, "sendVersion")
+	payload := utils.Serialize(version)
 	request := append(commandToBytes("version"), payload...)
 	sendData(addr, request)
 }
@@ -81,6 +95,7 @@ func handleVersion(request []byte, bc *core.Blockchain) {
 	decodeRequest(request, &payload)
 	requestNodeBestHeight := payload.BestHeight
 
+	utils.PrintJsonLog(payload, "handleVersion")
 	if myBestHeight < requestNodeBestHeight {
 		sendGetBlocks(payload.AddrFrom)
 	} else if myBestHeight > requestNodeBestHeight {
@@ -88,6 +103,7 @@ func handleVersion(request []byte, bc *core.Blockchain) {
 	}
 	if !nodeIsKnown(payload.AddrFrom) {
 		knownNodes = append(knownNodes, payload.AddrFrom)
+		logrus.Infof("Known nodes: %s", knownNodes)
 		for _, node := range knownNodes {
 			sendGetBlocks(node)
 		}
@@ -109,6 +125,7 @@ func sendData(addr string, data []byte) {
 		knownNodes = updatedNodes
 		return
 	}
+	defer conn.Close()
 	_, err = io.Copy(conn, bytes.NewReader(data))
 	if err != nil {
 		log.Panic(err)
@@ -121,6 +138,7 @@ func sendData(addr string, data []byte) {
 // }
 
 func sendBlock(address string, b *core.Block) {
+	utils.PrintJsonLog(b, "sendBlock")
 	data := nodeBlock{nodeAddress, utils.Serialize(b)}
 	payload := utils.Serialize(data)
 	request := append(commandToBytes("block"), payload...)
@@ -132,7 +150,7 @@ func handleBlock(request []byte, bc *core.Blockchain) {
 
 	blockData := payload.Block
 	var block core.Block
-	utils.Deserialize(blockData, block)
+	utils.Deserialize(blockData, &block)
 	bc.AddBlock(&block)
 	logrus.Info("Added block %x\n", block.Hash)
 
@@ -219,6 +237,10 @@ func handleGetData(request []byte, bc *core.Blockchain) {
 	}
 }
 
+func SendTxToNode(tnx *core.Transaction) {
+	sendTx(knownNodes[0], tnx)
+}
+
 func sendTx(address string, tnx *core.Transaction) {
 	payload := utils.Serialize(tx{address, utils.Serialize(tnx)})
 	request := append(commandToBytes("tx"), payload...)
@@ -226,7 +248,7 @@ func sendTx(address string, tnx *core.Transaction) {
 }
 func handleTx(request []byte, bc *core.Blockchain) {
 	var payload tx
-	decodeRequest(request, payload)
+	decodeRequest(request, &payload)
 	txData := payload.Transaction
 	var tx core.Transaction
 	utils.Deserialize(txData, &tx)
@@ -234,7 +256,7 @@ func handleTx(request []byte, bc *core.Blockchain) {
 	// add tx into mempool
 	mempool[hex.EncodeToString(tx.ID)] = tx
 
-	// if node is master node, just send inv 
+	// if node is master node, just send inv
 	// TODO should be decentralized
 	if nodeAddress != knownNodes[0] {
 		for _, node := range knownNodes {
@@ -243,7 +265,7 @@ func handleTx(request []byte, bc *core.Blockchain) {
 			}
 		}
 	} else if len(mempool) >= 2 && len(miningAddress) > 0 {
-		// if mempool is not empty , try to mine block 
+		// if mempool is not empty , try to mine block
 	MineTransactions:
 		var txs []*core.Transaction
 		// verfiy tx
@@ -297,7 +319,7 @@ func decodeRequest(request []byte, v interface{}) {
 	var buff bytes.Buffer
 
 	buff.Write(request[commandLength:])
-	err := gob.NewDecoder(&buff).Decode(&v)
+	err := gob.NewDecoder(&buff).Decode(v)
 	if err != nil {
 		log.Panic(err)
 	}

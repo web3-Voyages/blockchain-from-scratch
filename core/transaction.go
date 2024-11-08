@@ -51,19 +51,12 @@ func NewCoinbaseTx(to, data string) *Transaction {
 	return &tx
 }
 
-func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(nodeWallet *wallet.Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TxInput
 	var outputs []TxOutput
 
-	wallets, err := wallet.NewWallets()
-	if err != nil {
-		log.Panic(err)
-	}
-
-	fromWallet := wallets.GetWallet(from)
-	pubKeyHash := wallet.HashPubKey(fromWallet.PublicKey)
+	pubKeyHash := wallet.HashPubKey(nodeWallet.PublicKey)
 	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
-	logrus.Infof("NewUTXOTransaction from '%s' to '%s' amount %d", from, to, acc)
 	if acc < amount {
 		log.Panic("Error: Not enough funds")
 	}
@@ -74,11 +67,13 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
 			log.Panic(err)
 		}
 		for _, out := range outs {
-			input := TxInput{txID, out, nil, fromWallet.PublicKey}
+			input := TxInput{txID, out, nil, nodeWallet.PublicKey}
 			inputs = append(inputs, input)
 		}
 	}
 
+	from := string(nodeWallet.GetAddress())
+	logrus.Infof("NewUTXOTransaction from '%s' to '%s' amount %d", from, to, acc)
 	// Ensure correct balance when transferring to self
 	if from == to {
 		outputs = append(outputs, *NewTXOutput(acc, from))
@@ -92,7 +87,7 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
 	//utils.PrintJsonLog(tx, "NewUTXOTransaction")
 	tx.ID = tx.Hash()
 	// need SignTransaction
-	UTXOSet.Blockchain.SignTransaction(&tx, fromWallet.PrivateKey)
+	UTXOSet.Blockchain.SignTransaction(&tx, nodeWallet.PrivateKey)
 	return &tx
 }
 
