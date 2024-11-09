@@ -44,7 +44,6 @@ func StartServer(nodeId, minerAddress string) {
 }
 
 func handleConnection(conn net.Conn, bc *core.Blockchain) {
-	logrus.Info(">>>>>>>>>> handleConnection")
 	// 设置读取超时
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
@@ -59,7 +58,7 @@ func handleConnection(conn net.Conn, bc *core.Blockchain) {
 		return
 	}
 	command := bytesToCommand(request[:commandLength])
-	fmt.Printf("Received %s command\n", command)
+	fmt.Printf("%s: ==> Received %s command \n", time.Now().Format("2006-01-02 15:04:05.000"), command)
 
 	switch command {
 	case "block":
@@ -84,7 +83,6 @@ func handleConnection(conn net.Conn, bc *core.Blockchain) {
 func sendVersion(addr string, bc *core.Blockchain) {
 	bestHeight := bc.GetBestHeight()
 	version := version{nodeVersion, bestHeight, nodeAddress}
-	utils.PrintJsonLog(version, "sendVersion")
 	payload := utils.Serialize(version)
 	request := append(commandToBytes("version"), payload...)
 	sendData(addr, request)
@@ -95,7 +93,6 @@ func handleVersion(request []byte, bc *core.Blockchain) {
 	decodeRequest(request, &payload)
 	requestNodeBestHeight := payload.BestHeight
 
-	utils.PrintJsonLog(payload, "handleVersion")
 	if myBestHeight < requestNodeBestHeight {
 		sendGetBlocks(payload.AddrFrom)
 	} else if myBestHeight > requestNodeBestHeight {
@@ -111,6 +108,7 @@ func handleVersion(request []byte, bc *core.Blockchain) {
 }
 
 func sendData(addr string, data []byte) {
+	logrus.Infof("%s: ==> Send %s data to %s\n", time.Now().Format("2006-01-02 15:04:05.000"), data[:commandLength], addr)
 	conn, err := net.Dial(protocol, addr)
 	if err != nil {
 		// add new  node
@@ -138,7 +136,6 @@ func sendData(addr string, data []byte) {
 // }
 
 func sendBlock(address string, b *core.Block) {
-	utils.PrintJsonLog(b, "sendBlock")
 	data := nodeBlock{nodeAddress, utils.Serialize(b)}
 	payload := utils.Serialize(data)
 	request := append(commandToBytes("block"), payload...)
@@ -152,7 +149,7 @@ func handleBlock(request []byte, bc *core.Blockchain) {
 	var block core.Block
 	utils.Deserialize(blockData, &block)
 	bc.AddBlock(&block)
-	logrus.Info("Added block %x\n", block.Hash)
+	logrus.Infof("Added block %x\n", block.Hash)
 
 	if len(blocksInTransit) > 0 {
 		blockHash := blocksInTransit[0]
