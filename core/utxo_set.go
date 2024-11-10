@@ -108,12 +108,13 @@ func (utxo UTXOSet) Reindex() {
 		_, err = tx.CreateBucket(bucketName)
 		return err
 	})
-
+	//utils.PrintJsonLog(utxo, "Reindex")
 	if err != nil {
 		log.Panic(err)
 	}
 
 	UTXO := utxo.Blockchain.FindUTXO()
+	//utils.PrintJsonLog(UTXO, "Reindex")
 	err = db.Update(func(tx *bolt.Tx) error {
 		block := tx.Bucket(bucketName)
 		for txId, outs := range UTXO {

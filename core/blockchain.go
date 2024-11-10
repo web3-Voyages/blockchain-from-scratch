@@ -82,11 +82,12 @@ func (bc *Blockchain) AddBlock(block *Block) {
 		// Get last block from chain
 		var lastBlock Block
 		lastHash := bucket.Get([]byte("l"))
-		utils.Deserialize(bucket.Get(lastHash), lastBlock)
+		utils.Deserialize(bucket.Get(lastHash), &lastBlock)
 
 		// if block height higher, update blockchain lastblock
 		if block.Height > lastBlock.Height {
 			err = bucket.Put([]byte("l"), block.Hash)
+			bc.tip = block.Hash
 			if err != nil {
 				log.Panic(err)
 			}

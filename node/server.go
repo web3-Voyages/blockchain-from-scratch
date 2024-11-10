@@ -149,8 +149,8 @@ func handleBlock(request []byte, bc *core.Blockchain) {
 	var block core.Block
 	utils.Deserialize(blockData, &block)
 	bc.AddBlock(&block)
-	logrus.Infof("Added block %x\n", block.Hash)
 
+	//utxoSet.Update(&block)
 	if len(blocksInTransit) > 0 {
 		blockHash := blocksInTransit[0]
 		sendGetData(payload.AddrFrom, "block", blockHash)
@@ -173,6 +173,9 @@ func handleInv(request []byte, bc *core.Blockchain) {
 	logrus.Infof("Recevied inventory with %d %s\n", len(payload.Items), payload.Type)
 
 	if payload.Type == "block" {
+		//for _, blockHash := range payload.Items {
+		//	sendGetData(payload.AddrFrom, "block", blockHash)
+		//}
 		blocksInTransit = payload.Items
 		blockHash := payload.Items[0]
 		sendGetData(payload.AddrFrom, payload.Type, blockHash)
@@ -209,7 +212,7 @@ func handleGetBlocks(request []byte, bc *core.Blockchain) {
 }
 
 func sendGetData(address, kind string, id []byte) {
-	payload := utils.Serialize(getdata{address, kind, id})
+	payload := utils.Serialize(getdata{address, nodeAddress, kind, id})
 	request := append(commandToBytes("getdata"), payload...)
 	sendData(address, request)
 }
@@ -224,7 +227,7 @@ func handleGetData(request []byte, bc *core.Blockchain) {
 			return
 		}
 
-		sendBlock(payload.AddrFrom, &block)
+		sendBlock(payload.AddrTo, &block)
 	}
 
 	if payload.Type == "tx" {

@@ -15,6 +15,7 @@ type getblocks struct {
 
 type getdata struct {
 	AddrFrom string
+	AddrTo   string
 	Type     string
 	ID       []byte
 }
