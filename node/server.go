@@ -264,7 +264,7 @@ func handleTx(request []byte, bc *core.Blockchain) {
 				sendInv(payload.AddFrom, "tx", [][]byte{tx.ID})
 			}
 		}
-	} else if len(mempool) >= 2 && len(miningAddress) > 0 {
+	} else if len(mempool) >= 2 {
 		// if mempool is not empty , try to mine block
 	MineTransactions:
 		var txs []*core.Transaction
@@ -281,6 +281,7 @@ func handleTx(request []byte, bc *core.Blockchain) {
 		}
 
 		// mine new block
+		// TODO need sync miningAddress with other nodes
 		cbtx := core.NewCoinbaseTx(miningAddress, "")
 		txs = append(txs, cbtx)
 		newBlock := bc.MineBlock(txs)

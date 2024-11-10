@@ -242,7 +242,6 @@ func (chain *Blockchain) SignTransaction(tx *Transaction, privKey ecdsa.PrivateK
 		prevTXs[hex.EncodeToString(vin.Txid)] = prevTx
 	}
 	tx.Sign(privKey, prevTXs)
-	//utils.PrintJsonLog(tx, "SignTransaction")
 }
 
 func (chain *Blockchain) VerifyTransaction(tx *Transaction) bool {

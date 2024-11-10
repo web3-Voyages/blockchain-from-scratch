@@ -2,6 +2,7 @@ package core
 
 import (
 	"blockchain-from-scratch/core/wallet"
+	"blockchain-from-scratch/utils"
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -128,10 +129,13 @@ func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transact
 	for inId, vin := range txCopy.Vin {
 		// Retrieve the previous transaction corresponding to the current input
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
-		prepareForSigning(&txCopy, inId, &prevTx)
-
+		//utils.PrintJsonLog(&prevTx, "Sign")
+		//prepareForSigning(&txCopy, inId, &prevTx)
+		txCopy.Vin[inId].Signature = nil
+		txCopy.Vin[inId].PubKey = prevTx.VOut[vin.Vout].PubKeyHash
+		dataToSign := fmt.Sprintf("%x\n", txCopy)
 		// Sign the transaction ID with the private key
-		r, s, err := ecdsa.Sign(rand.Reader, &priKey, txCopy.ID)
+		r, s, err := ecdsa.Sign(rand.Reader, &priKey, []byte(dataToSign))
 		// logrus.Infof("r: '%x', s: '%x', id '%x'", r, s, txCopy.ID)
 		if err != nil {
 			log.Panic(err)
@@ -144,8 +148,11 @@ func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transact
 }
 
 func prepareForSigning(txCopy *Transaction, inId int, prevTx *Transaction) {
+	// TODO why same prevTx, different hash
 	txCopy.Vin[inId].Signature = nil
-	txCopy.Vin[inId].PubKey = prevTx.Hash()
+	prevTxCopy := prevTx.TrimmedCopy()
+	txCopy.Vin[inId].PubKey = prevTxCopy.Hash()
+	utils.PrintJsonLog(&prevTx, fmt.Sprintf("%x", txCopy.Vin[inId].PubKey))
 	txCopy.ID = txCopy.Hash()
 	txCopy.Vin[inId].PubKey = nil
 }
@@ -156,7 +163,11 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 
 	for inId, vin := range tx.Vin {
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
-		prepareForSigning(&txCopy, inId, &prevTx)
+		//prepareForSigning(&txCopy, inId, &prevTx)
+		//utils.PrintJsonLog(&prevTx, "Verify")
+		txCopy.Vin[inId].Signature = nil
+		txCopy.Vin[inId].PubKey = prevTx.VOut[vin.Vout].PubKeyHash
+		dataToVerify := fmt.Sprintf("%x\n", txCopy)
 
 		r := big.Int{}
 		s := big.Int{}
@@ -172,7 +183,7 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 		y.SetBytes(vin.PubKey[(keyLen / 2):])
 
 		rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
-		if !ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) {
+		if !ecdsa.Verify(&rawPubKey, []byte(dataToVerify), &r, &s) {
 			return false
 		}
 	}
