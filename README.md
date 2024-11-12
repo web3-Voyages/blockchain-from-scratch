@@ -42,8 +42,10 @@ Done!
 
 3. transfer
 ```bash
-go run cmd/main.go send -from 15NNQXN8JyMrtPK3qzS1DE2hgGLABmkXWT  -to 13qDAdLBNfNYmvqjQ5ae5d8JGKRuBJVTzY  -amount 4
+go run cmd/main.go send -from WALLET_1 -to WALLET_2 -amount 10 -mine
+go run cmd/main.go send -from WALLET_3 -to WALLET_4 -amount 10
 ```
+-mine 标志指的是块会立刻被同一节点挖出来, 不指定的话交易将由矿工打包出块
 
 4. getBalance 
 ```bash
@@ -57,6 +59,9 @@ go run cmd/main.go printchain
 ```
   
 7. // TODO....
+
+## Release & Deliverable
+- [docs](./docs)
 
 ## References
 - [How does Blockchain work? - Simply Explained](https://www.youtube.com/watch?v=SSo_EIwHSd4)  - A YouTube video explaining blockchain basics in simple terms.
