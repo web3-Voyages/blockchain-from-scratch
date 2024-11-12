@@ -2,14 +2,13 @@ package core
 
 import (
 	"blockchain-from-scratch/core/wallet"
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/gob"
 	"encoding/hex"
 	"fmt"
+	"github.com/vmihailenco/msgpack/v5"
 	"log"
 	"math/big"
 	"time"
@@ -51,19 +50,12 @@ func NewCoinbaseTx(to, data string) *Transaction {
 	return &tx
 }
 
-func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(nodeWallet *wallet.Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TxInput
 	var outputs []TxOutput
 
-	wallets, err := wallet.NewWallets()
-	if err != nil {
-		log.Panic(err)
-	}
-
-	fromWallet := wallets.GetWallet(from)
-	pubKeyHash := wallet.HashPubKey(fromWallet.PublicKey)
+	pubKeyHash := wallet.HashPubKey(nodeWallet.PublicKey)
 	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
-	logrus.Infof("NewUTXOTransaction from '%s' to '%s' amount %d", from, to, acc)
 	if acc < amount {
 		log.Panic("Error: Not enough funds")
 	}
@@ -74,11 +66,13 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
 			log.Panic(err)
 		}
 		for _, out := range outs {
-			input := TxInput{txID, out, nil, fromWallet.PublicKey}
+			input := TxInput{txID, out, nil, nodeWallet.PublicKey}
 			inputs = append(inputs, input)
 		}
 	}
 
+	from := string(nodeWallet.GetAddress())
+	logrus.Infof("NewUTXOTransaction from '%s' to '%s' amount %d", from, to, acc)
 	// Ensure correct balance when transferring to self
 	if from == to {
 		outputs = append(outputs, *NewTXOutput(acc, from))
@@ -92,7 +86,7 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
 	//utils.PrintJsonLog(tx, "NewUTXOTransaction")
 	tx.ID = tx.Hash()
 	// need SignTransaction
-	UTXOSet.Blockchain.SignTransaction(&tx, fromWallet.PrivateKey)
+	UTXOSet.Blockchain.SignTransaction(&tx, nodeWallet.PrivateKey)
 	return &tx
 }
 
@@ -110,15 +104,11 @@ func (tx *Transaction) Hash() []byte {
 
 // Serialize returns a serialized Transaction
 func (tx Transaction) Serialize() []byte {
-	var encoded bytes.Buffer
-
-	enc := gob.NewEncoder(&encoded)
-	err := enc.Encode(tx)
+	result, err := msgpack.Marshal(tx)
 	if err != nil {
 		log.Panic(err)
 	}
-
-	return encoded.Bytes()
+	return result
 }
 
 func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
@@ -134,16 +124,17 @@ func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transact
 		// Retrieve the previous transaction corresponding to the current input
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
 		prepareForSigning(&txCopy, inId, &prevTx)
-
+		dataToSign := txCopy.ID
+		txCopy.Vin[inId].Signature = nil
+		txCopy.Vin[inId].PubKey = prevTx.VOut[vin.Vout].PubKeyHash
+		//dataToSign := []byte(fmt.Sprintf("%x\n", txCopy))
 		// Sign the transaction ID with the private key
-		r, s, err := ecdsa.Sign(rand.Reader, &priKey, txCopy.ID)
-		// logrus.Infof("r: '%x', s: '%x', id '%x'", r, s, txCopy.ID)
+		r, s, err := ecdsa.Sign(rand.Reader, &priKey, dataToSign)
 		if err != nil {
 			log.Panic(err)
 		}
 		// Append the signature to the original transaction's input
 		tx.Vin[inId].Signature = append(r.Bytes(), s.Bytes()...)
-		// logrus.Infof("vin '%d' Signature: %x", inId, tx.Vin[inId].Signature)
 	}
 
 }
@@ -162,6 +153,11 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 	for inId, vin := range tx.Vin {
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
 		prepareForSigning(&txCopy, inId, &prevTx)
+		dataToVerify := txCopy.ID
+		//utils.PrintJsonLog(&prevTx, "Verify")
+		//txCopy.Vin[inId].Signature = nil
+		//txCopy.Vin[inId].PubKey = prevTx.VOut[vin.Vout].PubKeyHash
+		//dataToVerify := []byte(fmt.Sprintf("%x\n", txCopy))
 
 		r := big.Int{}
 		s := big.Int{}
@@ -177,7 +173,7 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 		y.SetBytes(vin.PubKey[(keyLen / 2):])
 
 		rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
-		if !ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) {
+		if !ecdsa.Verify(&rawPubKey, dataToVerify, &r, &s) {
 			return false
 		}
 	}

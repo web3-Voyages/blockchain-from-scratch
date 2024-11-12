@@ -14,10 +14,11 @@ type Block struct {
 	PrevBlockHash []byte
 	Hash          []byte
 	Nonce         int
+	Height        int
 }
 
-func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
-	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0}
+func NewBlock(transactions []*Transaction, prevBlockHash []byte, height int) *Block {
+	block := &Block{time.Now().Unix(), transactions, prevBlockHash, []byte{}, 0, height}
 
 	// use consensus to generate hash and nonce
 	// TODO can be extend more consensus mechanism
@@ -34,7 +35,7 @@ func NewBlock(transactions []*Transaction, prevBlockHash []byte) *Block {
 // NewGenesisBlock when the chain created, init GenesisBlock
 func NewGenesisBlock(coinbase *Transaction) *Block {
 	logrus.Info("No existing blockchain found. Creating a new one...")
-	return NewBlock([]*Transaction{coinbase}, []byte{})
+	return NewBlock([]*Transaction{coinbase}, []byte{}, 0)
 }
 
 // HashTransactions TODO can use Merkle tree hash

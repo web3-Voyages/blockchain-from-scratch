@@ -1,7 +1,6 @@
-
 {
   "name": "blockchain-from-scratch",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "This project aims to implement a simple blockchain from scratch using Golang. The goal is to understand the core components of blockchain technology, such as block creation, chain linking, and mining algorithms.",
   "main": "index.js",
   "scripts": {
@@ -9,9 +8,7 @@
   },
   "author": "Yige",
   "license": "Apache-2.0 license",
-
   "dependencies": {
     "@changesets/cli": "^2.27.9"
   }
 }
-
