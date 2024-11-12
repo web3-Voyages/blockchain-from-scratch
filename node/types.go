@@ -36,3 +36,8 @@ type version struct {
 	BestHeight int
 	AddrFrom   string
 }
+
+type miner struct {
+	MinerAddr     string
+	MinerNodeAddr string
+}

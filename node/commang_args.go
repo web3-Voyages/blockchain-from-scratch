@@ -11,6 +11,7 @@ const nodeVersion = 1
 var nodeAddress string
 var miningAddress string
 var knownNodes = []string{"localhost:3000"}
+var minerNodes = []string{}
 var blocksInTransit = [][]byte{}
 var mempool = make(map[string]core.Transaction)
 

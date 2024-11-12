@@ -34,6 +34,14 @@ func StartServer(nodeId, minerAddress string) {
 		sendVersion(knownNodes[0], bc)
 	}
 
+	if len(minerAddress) > 0 {
+		for _, node := range knownNodes {
+			if node != nodeAddress {
+				sendMinerInfo(node)
+			}
+		}
+	}
+
 	for {
 		conn, err := nodeNet.Accept()
 		if err != nil {
@@ -73,11 +81,31 @@ func handleConnection(conn net.Conn, bc *core.Blockchain) {
 		handleTx(request, bc)
 	case "version":
 		handleVersion(request, bc)
+	case "minerInfo":
+		handleMinerInfo(request, bc)
 	default:
 		fmt.Println("Unknown command!")
 	}
 
 	conn.Close()
+}
+
+func sendMinerInfo(addr string) {
+	minerInfo := miner{miningAddress, nodeAddress}
+	payload := utils.Serialize(minerInfo)
+	request := append(commandToBytes("minerInfo"), payload...)
+	sendData(addr, request)
+}
+func handleMinerInfo(request []byte, bc *core.Blockchain) {
+	var payload miner
+	decodeRequest(request, &payload)
+	utils.PrintJsonLog(&payload, "handleMinerInfo")
+	miningAddress = payload.MinerAddr
+	if !nodeIsMiner(payload.MinerNodeAddr) {
+		minerNodes = append(minerNodes, payload.MinerNodeAddr)
+		logrus.Infof("add miner node: %s \n ", payload.MinerNodeAddr)
+	}
+	logrus.Infof("mining address: %s", payload.MinerNodeAddr, miningAddress)
 }
 
 func sendVersion(addr string, bc *core.Blockchain) {
@@ -222,7 +250,7 @@ func handleGetData(request []byte, bc *core.Blockchain) {
 
 	// TODO should check the block or tx is exist
 	if payload.Type == "block" {
-		block, err := bc.GetBlock([]byte(payload.ID))
+		block, err := bc.GetBlock(payload.ID)
 		if err != nil {
 			return
 		}
@@ -233,7 +261,7 @@ func handleGetData(request []byte, bc *core.Blockchain) {
 	if payload.Type == "tx" {
 		txID := hex.EncodeToString(payload.ID)
 		tx := mempool[txID]
-		sendTx(payload.AddrFrom, &tx)
+		sendTx(payload.AddrTo, &tx)
 	}
 }
 
@@ -249,23 +277,24 @@ func sendTx(address string, tnx *core.Transaction) {
 func handleTx(request []byte, bc *core.Blockchain) {
 	var payload tx
 	decodeRequest(request, &payload)
+	//utils.PrintJsonLog(&payload, "handleTx")
 	txData := payload.Transaction
 	var tx core.Transaction
 	utils.Deserialize(txData, &tx)
 
 	// add tx into mempool
 	mempool[hex.EncodeToString(tx.ID)] = tx
-
-	// if node is master node, just send inv
+	utils.PrintJsonLog(&tx, "handleTx")
 	// TODO should be decentralized
-	if nodeAddress != knownNodes[0] {
-		for _, node := range knownNodes {
+	if nodeAddress == knownNodes[0] {
+		for _, node := range minerNodes {
 			if nodeAddress != node && node != payload.AddFrom {
-				sendInv(payload.AddFrom, "tx", [][]byte{tx.ID})
+				sendInv(node, "tx", [][]byte{tx.ID})
 			}
 		}
-	} else if len(mempool) >= 2 {
+	} else if len(mempool) >= 1 && len(miningAddress) > 0 {
 		// if mempool is not empty , try to mine block
+		logrus.Infof("Start mining block with %d transactions", len(mempool))
 	MineTransactions:
 		var txs []*core.Transaction
 		// verfiy tx
@@ -282,7 +311,8 @@ func handleTx(request []byte, bc *core.Blockchain) {
 
 		// mine new block
 		// TODO need sync miningAddress with other nodes
-		cbtx := core.NewCoinbaseTx(miningAddress, "")
+		//cbtx := core.NewCoinbaseTx(miningAddress, "")
+		cbtx := core.NewCoinbaseTx("1Gn2Dm7ALcoGfNDiLbpm9VsMVSPTe27JVm", "")
 		txs = append(txs, cbtx)
 		newBlock := bc.MineBlock(txs)
 		utxoSet := core.UTXOSet{Blockchain: bc}
@@ -308,6 +338,15 @@ func handleTx(request []byte, bc *core.Blockchain) {
 
 func nodeIsKnown(addr string) bool {
 	for _, node := range knownNodes {
+		if node == addr {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeIsMiner(addr string) bool {
+	for _, node := range minerNodes {
 		if node == addr {
 			return true
 		}

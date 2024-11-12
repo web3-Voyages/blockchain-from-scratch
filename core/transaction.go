@@ -2,15 +2,13 @@ package core
 
 import (
 	"blockchain-from-scratch/core/wallet"
-	"blockchain-from-scratch/utils"
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/sha256"
-	"encoding/gob"
 	"encoding/hex"
 	"fmt"
+	"github.com/vmihailenco/msgpack/v5"
 	"log"
 	"math/big"
 	"time"
@@ -106,15 +104,11 @@ func (tx *Transaction) Hash() []byte {
 
 // Serialize returns a serialized Transaction
 func (tx Transaction) Serialize() []byte {
-	var encoded bytes.Buffer
-
-	enc := gob.NewEncoder(&encoded)
-	err := enc.Encode(tx)
+	result, err := msgpack.Marshal(tx)
 	if err != nil {
 		log.Panic(err)
 	}
-
-	return encoded.Bytes()
+	return result
 }
 
 func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
@@ -129,30 +123,25 @@ func (tx *Transaction) Sign(priKey ecdsa.PrivateKey, prevTXs map[string]Transact
 	for inId, vin := range txCopy.Vin {
 		// Retrieve the previous transaction corresponding to the current input
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
-		//utils.PrintJsonLog(&prevTx, "Sign")
-		//prepareForSigning(&txCopy, inId, &prevTx)
+		prepareForSigning(&txCopy, inId, &prevTx)
+		dataToSign := txCopy.ID
 		txCopy.Vin[inId].Signature = nil
 		txCopy.Vin[inId].PubKey = prevTx.VOut[vin.Vout].PubKeyHash
-		dataToSign := fmt.Sprintf("%x\n", txCopy)
+		//dataToSign := []byte(fmt.Sprintf("%x\n", txCopy))
 		// Sign the transaction ID with the private key
-		r, s, err := ecdsa.Sign(rand.Reader, &priKey, []byte(dataToSign))
-		// logrus.Infof("r: '%x', s: '%x', id '%x'", r, s, txCopy.ID)
+		r, s, err := ecdsa.Sign(rand.Reader, &priKey, dataToSign)
 		if err != nil {
 			log.Panic(err)
 		}
 		// Append the signature to the original transaction's input
 		tx.Vin[inId].Signature = append(r.Bytes(), s.Bytes()...)
-		// logrus.Infof("vin '%d' Signature: %x", inId, tx.Vin[inId].Signature)
 	}
 
 }
 
 func prepareForSigning(txCopy *Transaction, inId int, prevTx *Transaction) {
-	// TODO why same prevTx, different hash
 	txCopy.Vin[inId].Signature = nil
-	prevTxCopy := prevTx.TrimmedCopy()
-	txCopy.Vin[inId].PubKey = prevTxCopy.Hash()
-	utils.PrintJsonLog(&prevTx, fmt.Sprintf("%x", txCopy.Vin[inId].PubKey))
+	txCopy.Vin[inId].PubKey = prevTx.Hash()
 	txCopy.ID = txCopy.Hash()
 	txCopy.Vin[inId].PubKey = nil
 }
@@ -163,11 +152,12 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 
 	for inId, vin := range tx.Vin {
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
-		//prepareForSigning(&txCopy, inId, &prevTx)
+		prepareForSigning(&txCopy, inId, &prevTx)
+		dataToVerify := txCopy.ID
 		//utils.PrintJsonLog(&prevTx, "Verify")
-		txCopy.Vin[inId].Signature = nil
-		txCopy.Vin[inId].PubKey = prevTx.VOut[vin.Vout].PubKeyHash
-		dataToVerify := fmt.Sprintf("%x\n", txCopy)
+		//txCopy.Vin[inId].Signature = nil
+		//txCopy.Vin[inId].PubKey = prevTx.VOut[vin.Vout].PubKeyHash
+		//dataToVerify := []byte(fmt.Sprintf("%x\n", txCopy))
 
 		r := big.Int{}
 		s := big.Int{}
@@ -183,7 +173,7 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 		y.SetBytes(vin.PubKey[(keyLen / 2):])
 
 		rawPubKey := ecdsa.PublicKey{Curve: curve, X: &x, Y: &y}
-		if !ecdsa.Verify(&rawPubKey, []byte(dataToVerify), &r, &s) {
+		if !ecdsa.Verify(&rawPubKey, dataToVerify, &r, &s) {
 			return false
 		}
 	}

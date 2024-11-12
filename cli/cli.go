@@ -146,14 +146,14 @@ func (cli *CLI) printChain(nodeID string) {
 
 	for {
 		block := bci.Next()
-		utils.PrintJsonLog(block, "Block")
 		//fmt.Printf("============ Block %x ============\n", block.Hash)
 		//fmt.Printf("Prev. block: %x\n", block.PrevBlockHash)
 		pow := core.NewProofOfWork(block)
 		fmt.Printf("PoW: %s\n\n", strconv.FormatBool(pow.Validate()))
-		for _, tx := range block.Transactions {
-			utils.PrintJsonLog(tx, "printChain")
-		}
+		//for _, tx := range block.Transactions {
+		//	utils.PrintJsonLog(tx, "printChain")
+		//}
+		utils.PrintJsonLog(block, "Block")
 		fmt.Printf("\n\n")
 
 		if len(block.PrevBlockHash) == 0 {

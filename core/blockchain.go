@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"log"
 	"os"
 
@@ -60,7 +61,7 @@ func (chain *Blockchain) MineBlock(transactions []*Transaction) *Block {
 	if err != nil {
 		log.Panic(err)
 	}
-
+	logrus.Info("New block is mined")
 	return newBlock
 }
 
